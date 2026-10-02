@@ -1,0 +1,41 @@
+# Terraform caches, local state, and state backups (all folders)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Private input values, including examples until reviewed for publication
+*.tfvars
+*.tfvars.json
+*.tfvars.example
+*.tfvars.json.example
+
+# Saved plans and diagnostic output
+*.tfplan
+*.plan
+crash.log
+crash.*.log
+
+# Private backend/CLI configuration and credentials
+*.tfbackend
+.terraformrc
+terraform.rc
+credentials.tfrc.json
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Local recovery archives and editor leftovers
+.local-archive/
+*.tf.save
+*.tfvars.save
+*.swp
+*.swo
+.DS_Store
+
+# Commit .terraform.lock.hcl after each configuration is initialized.
