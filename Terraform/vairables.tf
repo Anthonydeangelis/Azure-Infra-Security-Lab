@@ -33,17 +33,10 @@ variable "admin_username" {
 variable "public_key" {
   type = string
 }
-variable "vnet_name" {
-  type = string
-}
-
-variable "vnet_address_space" {
-  type = list(string)
-}
-
 variable "subnets" {
   type = map(object({
     name             = string
+    vnet_key         = string
     address_prefixes = list(string)
   }))
 }
@@ -61,4 +54,12 @@ variable "db-disk" {
 }
 variable "macip" {
   type = string
+}
+variable "vnet-map" {
+  type = map(object({
+    name          = string
+    location      = string
+    address_space = list(string)
+  }))
+
 }

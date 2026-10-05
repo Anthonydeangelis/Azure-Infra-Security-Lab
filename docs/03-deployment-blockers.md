@@ -1,6 +1,6 @@
 # Deployment troubleshooting: registration, quota, and SKU restrictions
 
-Recorded October 1, 2026 (America/New_York). Terraform 1.16.4, AzureRM 5.0.0, local Ubuntu execution, Azure Blob workload state. This page records failed applies and read-only follow-up checks; remediation deployment is pending.
+Recorded October 1, 2026 (America/New_York). Terraform 1.16.4, AzureRM 5.0.0, local Ubuntu execution, Azure Blob workload state. This page preserves the failed applies and checks at that time. **October 2 update:** subsequent screenshots show five VMs deployed across two regions and connected peering in both directions. See [deployment verification](04-workload-deployment.md); earlier pending statements below are historical.
 
 ## Observed failures
 

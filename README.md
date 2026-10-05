@@ -6,17 +6,37 @@ A hands-on project demonstrating Azure administration, Terraform, and practical 
 
 ## Current status
 
-**State-storage bootstrap deployed; workload infrastructure still in progress.** User-provided screenshots show a successful Terraform apply creating a storage account and blob container, the storage account in its dedicated resource group, and public network access restricted to selected networks. Azure backend initialization succeeded and the `azure-lab.tfstate` blob is visible in storage. Remaining storage controls, workload deployment, monitoring, and automation are not yet verified.
+**Initial compute and networking deployed across two regions.** Screenshots reviewed October 2, 2026 show five VMs, two non-overlapping VNets, connected peering in both directions, and the database data disk attached. The author reports successful SSH to management; the supplied login screenshot shows Ubuntu 24.04.4 LTS. October 3 evidence verifies management-to-app and cross-region management-to-test SSH. All four private VM SSH destinations are now evidenced. Explicit outbound access, broader segmentation, and security automation remain pending. Initial management/web monitoring is now collecting Heartbeat and general Syslog. See [deployment verification and remaining tests](docs/04-workload-deployment.md).
 
 See [Bootstrap deployment and evidence](docs/01-state-storage-bootstrap.md).
 
-[Workload review](docs/02-workload-plan-review.md): validation passed and a plan proposed **30 new resources, no changes or deletions**. Workload deployment remains unverified; explicit outbound connectivity is still pending, and internal segmentation is deferred to the hardening phase.
+**Ansible web configuration verified October 3, 2026:** Nginx installed from the Mac through the management jump host. The repeat run reported **changed=0**, and management received **HTTP 200** from the private web VM. [Commands, results, and screenshots](docs/05-ansible-web-configuration.md). Explicit outbound configuration and the broader security automation remain pending.
 
-[Deployment troubleshooting](docs/03-deployment-blockers.md): networking and the database data disk are tracked in state, but no workload VMs were found. VM deployment is blocked by four-vCPU regional quotas and restrictions on the original sizes. Smaller SKUs and a two-region layout are under evaluation.
+The custom lab homepage is also deployed through Ansible: **5 OK, 1 changed** on deployment and **5 OK, 0 changed** on repeat, with no failed or unreachable tasks. Management retrieved the expected HTML over private HTTP. [Custom-page evidence](docs/05-ansible-web-configuration.md#custom-homepage-verified-october-3-2026).
+
+**Post-deployment check, October 3, 2026:** the supplied Terraform plan reports **No changes**. [Screenshot and verification limits](docs/04-workload-deployment.md#follow-up-plan-verified-october-3-2026).
+
+**Web NSG decisions verified:** the reviewed plan proposed three inbound rules (**3 additions, 0 changes, 0 deletions**). Network Watcher now reports management SSH/HTTP allowed by the explicit rules and app SSH/HTTP denied by `Deny_All`. Live HTTP tests also show management retrieving the custom page while app times out. The author also confirmed fresh web SSH still worked and the post-change plan reported no changes; those final checks have no retained screenshots. The apply summary remains uncaptured. [Before/after design, plan, and test checklist](docs/06-web-network-segmentation.md).
+
+[Workload review](docs/02-workload-plan-review.md) records the original pre-deployment plan. The revised saved plan was reviewed with **13 additions, 0 updates, and 4 replacements of test-network resources**; the primary VNet and database disk were preserved in that plan. Actual apply totals have not yet been captured.
+
+[Deployment troubleshooting](docs/03-deployment-blockers.md) records the earlier quota and SKU failures that prompted the redesign. Subsequent inventory screenshots now show all five VMs using Standard_F1as_v7 across East US 2 and East US.
 
 Completed items will be checked off only after testing. Screenshots and short explanations will document the results, including any limitations.
 
-**Design history:** the local Git tag `design-before-region-refactor` preserves the current code before the region-aware refactor, including an unfinished second-VNet block. [Original design, reason for the pivot, and checkpoint limitations](docs/03-deployment-blockers.md#design-history-checkpoint) are documented separately. The revised architecture remains planned.
+**Design history:** the local Git tag `design-before-region-refactor` preserves the earlier code, including an unfinished second-VNet block. [Original design, reason for the pivot, and checkpoint limitations](docs/03-deployment-blockers.md#design-history-checkpoint) are documented separately. The revised compute/network deployment is now evidenced; functional testing remains in progress.
+
+```text
+East US 2: vnet-lab01 (10.50.0.0/16)
+  Management, web, app, database VMs
+             ↕ Connected VNet peering
+East US:   vnet-lab02 (10.60.0.0/16)
+  Test VM
+```
+
+All five VMs use Standard_F1as_v7. October 3 screenshots verify management-to-app SSH within the primary VNet and management-to-test SSH across peering. See [connection commands and evidence](docs/04-workload-deployment.md#primary-vnet-ssh-verified-october-3-2026). Additional screenshots verify management-to-web and management-to-database SSH; all four private destinations are now tested. Web inbound restrictions are verified separately in the segmentation evidence above.
+
+**Initial monitoring verified October 3, 2026:** `law-azure-sec-lab` contains Heartbeat and general Syslog from management and web. The successful retry apply added four resources. The specific controlled Syslog message and AzureActivity ingestion are not yet verified. [Monitoring setup, evidence, and troubleshooting](docs/07-initial-monitoring.md).
 
 ## Planned architecture
 
@@ -34,7 +54,7 @@ Activity Log + selected resource/VM logs → Log Analytics
                                                 → Playbook enrichment + notification
 ```
 
-The final design, region, resource sizes, access methods, and estimated costs will be recorded before deployment. Remote Terraform state will have its own documented setup and ownership.
+The current deployed baseline is documented above. OIDC, Key Vault, alerts, backup, Sentinel, and playbook response remain planned; this diagram shows the intended end state. Cost estimates and state recovery tests remain unfinished.
 
 ## Project breakdown
 
@@ -42,23 +62,25 @@ The final design, region, resource sizes, access methods, and estimated costs wi
 
 **Goal:** deploy a small environment that can be reproduced and managed through code.
 
-- [ ] Review the existing Terraform files and agree on the architecture.
+- [x] Review and adapt the initial architecture to regional quota and SKU constraints.
 - [ ] Define naming, tags, resource ownership, and remote state.
 - [x] Deploy the bootstrap storage account and blob container.
 - [x] Verify selected-network access is configured (exception details still pending).
 - [x] Initialize the workload Azure backend and confirm the remote state blob exists.
-- [ ] Deploy networking, five Linux VMs, workload storage, Key Vault, and managed identities.
+- [x] Deploy networking and five Linux VMs across two regions.
+- [ ] Complete workload storage, Key Vault, and scoped identity/access tests.
 - [ ] Configure GitHub Actions authentication with OIDC.
-- [ ] Verify deployment and review a follow-up Terraform plan.
+- [x] Verify VM inventory, private SSH paths, and a follow-up no-changes plan.
 
-**Evidence:** architecture diagram, sanitized plan summary, deployed resources, and successful workflow run.
+**Evidence:** architecture and deployed-resource notes, sanitized plan summary, private SSH tests. GitHub workflow evidence is planned.
 
 ### 2. Secure administration
 
 **Goal:** demonstrate controlled access, network protection, cost awareness, and recovery.
 
 - [ ] Configure and test scoped RBAC assignments.
-- [ ] Apply NSG rules and document the workload administration method.
+- [x] Verify web NSG management allows and app denial; document SSH through management.
+- [ ] Extend segmentation to remaining workload subnets.
 - [ ] Configure appropriate private access for selected services.
 - [ ] Apply Azure Policy and review compliance results.
 - [ ] Configure a budget and alert notifications.
@@ -70,9 +92,12 @@ The final design, region, resource sizes, access methods, and estimated costs wi
 
 **Goal:** collect useful logs and demonstrate that monitoring works.
 
-- [ ] Configure Log Analytics and subscription Activity Log export.
+- [x] Deploy Log Analytics and subscription Administrative Activity Log export.
+- [ ] Verify a lab event arrives in AzureActivity.
 - [ ] Enable selected resource diagnostic settings.
-- [ ] Configure Azure Monitor Agent and data collection rules where needed for VM logs.
+- [x] Collect Heartbeat and general Linux Syslog from management and web using AMA and a DCR.
+- [ ] Verify a uniquely tagged controlled Syslog event.
+- [ ] Extend guest monitoring to the remaining VMs and collect Nginx access/error files.
 - [ ] Save KQL queries for resource changes and workload health.
 - [ ] Trigger and verify an operational alert.
 
@@ -108,13 +133,18 @@ An NSG write is a change signal, not proof of dangerous access. The investigatio
 
 **Later, optional:** approval-required remediation restricted to explicitly tagged lab resources; scheduled shutdown of tagged VMs; or an inventory/compliance report. Automatic remediation is outside the initial scope.
 
+## Reproducing the configuration
+
+See [setup and publication notes](docs/08-repository-readiness.md). Sanitized input examples are provided in both Terraform roots; real inputs, keys, state and plans stay private. This is an in-progress portfolio lab, not a production-ready deployment template.
+
 ## Repository layout
 
-`bootstrap/`, `Terraform/`, `docs/`, and `screenshots/` exist. The monitoring, Sentinel, and automation folders are planned.
+`bootstrap/`, `Terraform/`, `ansible/`, `docs/`, and `screenshots/` exist. The monitoring, Sentinel, and automation folders are planned.
 
 ```text
 bootstrap/     Separate state-storage creation configuration
-Terraform/     Workload infrastructure code and configuration examples
+Terraform/     Workload infrastructure and monitoring resources
+ansible/       Linux server configuration playbooks
 monitoring/    KQL queries and operational alert definitions
 sentinel/      Detection rules and investigation examples
 automation/    Playbook definitions and supporting scripts
@@ -124,7 +154,7 @@ screenshots/   Sanitized evidence organized by phase
 
 ## Verified results
 
-Evidence reviewed on 2026-10-01 from screenshots supplied by the project author. Screenshot filenames are dated 2026-09-30; the deployment's UTC timestamp was not independently verified.
+Evidence reviewed September 30–October 3, 2026 from author-supplied screenshots and reported checks. The following table summarizes bootstrap; later milestones are linked above. Screenshot filenames use local time, while some Azure records display UTC.
 
 | Step completed | Observed result | Evidence |
 | --- | --- | --- |

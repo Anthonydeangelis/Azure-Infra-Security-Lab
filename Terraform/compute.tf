@@ -1,10 +1,13 @@
 resource "azurerm_linux_virtual_machine" "linux_vms" {
   for_each            = var.linux_vms
   name                = each.value.name
-  location            = var.location
+  location            = azurerm_virtual_network.vnets[var.subnets[each.value.subnet_key].vnet_key].location
   resource_group_name = var.rg-lab
   size                = each.value.size
   admin_username      = var.admin_username
+  identity {
+    type = "SystemAssigned"
+  }
 
   network_interface_ids = [
   azurerm_network_interface.nics[each.key].id]
@@ -29,6 +32,22 @@ resource "azurerm_linux_virtual_machine" "linux_vms" {
     version   = var.image.version
   }
 
+}
+
+resource "azurerm_virtual_machine_extension" "ama" {
+  for_each = {
+    for key, vm in var.linux_vms :
+    key => vm
+    if contains(["management", "web"], key)
+  }
+
+  name                       = "AzureMonitorLinuxAgent"
+  virtual_machine_id         = azurerm_linux_virtual_machine.linux_vms[each.key].id
+  publisher                  = "Microsoft.Azure.Monitor"
+  type                       = "AzureMonitorLinuxAgent"
+  type_handler_version       = "1.0"
+  auto_upgrade_minor_version = true
+  automatic_upgrade_enabled  = true
 }
 
 resource "azurerm_managed_disk" "database_data" {

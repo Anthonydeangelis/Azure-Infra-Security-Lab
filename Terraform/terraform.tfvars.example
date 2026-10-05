@@ -1,0 +1,103 @@
+# Sanitized example only. Replace placeholders in your private terraform.tfvars.
+subscription_id = "00000000-0000-0000-0000-000000000000"
+location        = "eastus2"
+rg-lab          = "rg-azure-infra-security-lab"
+rg-sa           = "rg-tfstate-lab"
+
+image = {
+  publisher = "Canonical"
+  offer     = "ubuntu-24_04-lts"
+  sku       = "server"
+  version   = "latest"
+}
+admin_username = "labadmin"
+
+linux_vms = {
+  management = {
+    name                 = "vm-lab-mgmt-01"
+    size                 = "Standard_F1as_v7"
+    disk_size_gb         = 32
+    storage_account_type = "StandardSSD_LRS"
+    subnet_key           = "management"
+  }
+
+  web = {
+    name                 = "vm-lab-web-01"
+    size                 = "Standard_F1as_v7"
+    disk_size_gb         = 32
+    storage_account_type = "StandardSSD_LRS"
+    subnet_key           = "web"
+  }
+
+  app = {
+    name                 = "vm-lab-app-01"
+    size                 = "Standard_F1as_v7"
+    disk_size_gb         = 32
+    storage_account_type = "StandardSSD_LRS"
+    subnet_key           = "app"
+  }
+
+  database = {
+    name                 = "vm-lab-db-01"
+    size                 = "Standard_F1as_v7"
+    disk_size_gb         = 32
+    storage_account_type = "StandardSSD_LRS"
+    subnet_key           = "data"
+  }
+
+  test = {
+    name                 = "vm-lab-test-01"
+    size                 = "Standard_F1as_v7"
+    disk_size_gb         = 32
+    storage_account_type = "StandardSSD_LRS"
+    subnet_key           = "test"
+  }
+}
+public_key = "REPLACE_WITH_YOUR_SSH_PUBLIC_KEY"
+
+
+subnets = {
+  management = {
+    name             = "snet-management"
+    address_prefixes = ["10.50.1.0/24"]
+    vnet_key         = "primary"
+  }
+  web = {
+    name             = "snet-web"
+    address_prefixes = ["10.50.2.0/24"]
+    vnet_key         = "primary"
+  }
+  app = {
+    name             = "snet-app"
+    address_prefixes = ["10.50.3.0/24"]
+    vnet_key         = "primary"
+  }
+  data = {
+    name             = "snet-data"
+    address_prefixes = ["10.50.4.0/24"]
+    vnet_key         = "primary"
+  }
+  test = {
+    name             = "snet-test"
+    address_prefixes = ["10.60.1.0/24"]
+    vnet_key         = "secondary"
+  }
+}
+sa-tfstate        = "REPLACE_WITH_UNIQUE_STORAGE_ACCOUNT_NAME"
+container-tfstate = "tfstate"
+db-disk           = 32
+macip             = "203.0.113.10"
+
+vnet-map = {
+  primary = {
+    name     = "vnet-lab01"
+    location = "eastus2"
+    address_space = ["10.50.0.0/16"
+    ]
+  }
+  secondary = {
+    name          = "vnet-lab02"
+    location      = "eastus"
+    address_space = ["10.60.0.0/16"]
+  }
+}

@@ -39,3 +39,11 @@ id_ed25519
 .DS_Store
 
 # Commit .terraform.lock.hcl after each configuration is initialized.
+
+# Reviewed public configuration examples (live inputs remain excluded)
+!Terraform/terraform.tfvars.example
+!bootstrap/terraform.tfvars.example
+
+# Local Ansible connection settings and output
+ansible/inventory.local*
+*.retry

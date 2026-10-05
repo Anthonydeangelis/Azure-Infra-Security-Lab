@@ -1,0 +1,8 @@
+# Sanitized example only. Replace placeholders in your private terraform.tfvars.
+sa-tfstate        = "REPLACE_WITH_UNIQUE_STORAGE_ACCOUNT_NAME"
+container-tfstate = "tfstate"
+subscription_id   = "00000000-0000-0000-0000-000000000000"
+location          = "eastus2"
+rg-lab            = "rg-azure-infra-security-lab"
+rg-sa             = "rg-tfstate-lab"
+macip             = "203.0.113.10"
