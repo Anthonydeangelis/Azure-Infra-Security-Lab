@@ -1,0 +1,52 @@
+name: Azure OIDC login test
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  login:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+    env:
+      AZURE_CONFIG_DIR: ${{ runner.temp }}/azure-login-${{ github.run_id }}-${{ github.run_attempt }}
+      AZURE_CORE_OUTPUT: none
+      AZURE_LOGIN_PRE_CLEANUP: true
+      AZURE_LOGIN_POST_CLEANUP: true
+    steps:
+      - name: Check runner account and Azure CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = github-runner
+          command -v az >/dev/null
+          echo "Dedicated runner account and Azure CLI confirmed."
+
+      - name: Authenticate to Azure using GitHub OIDC
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify service principal and lab resource group access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(az account show --query user.type --output tsv)" = servicePrincipal
+          az group show --name rg-azure-infra-security-lab --output none
+          echo "OIDC login succeeded; the pipeline identity can read the lab resource group."
+
+      - name: Remove temporary Azure session
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v az >/dev/null; then
+            az account clear || true
+          fi
+          rm -rf -- "$AZURE_CONFIG_DIR"
