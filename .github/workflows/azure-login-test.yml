@@ -13,11 +13,16 @@ jobs:
     permissions:
       id-token: write
     env:
-      AZURE_CONFIG_DIR: ${{ runner.temp }}/azure-login-${{ github.run_id }}-${{ github.run_attempt }}
       AZURE_CORE_OUTPUT: none
       AZURE_LOGIN_PRE_CLEANUP: true
       AZURE_LOGIN_POST_CLEANUP: true
     steps:
+      - name: Set temporary Azure configuration directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "AZURE_CONFIG_DIR=$RUNNER_TEMP/azure-login-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
       - name: Check runner account and Azure CLI
         shell: bash
         run: |
@@ -49,4 +54,6 @@ jobs:
           if command -v az >/dev/null; then
             az account clear || true
           fi
-          rm -rf -- "$AZURE_CONFIG_DIR"
+          if [[ -n "${AZURE_CONFIG_DIR:-}" ]]; then
+            rm -rf -- "$AZURE_CONFIG_DIR"
+          fi
