@@ -1,0 +1,131 @@
+name: Terraform validate and plan
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: terraform-lab-state
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main' && github.event.repository.private
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      ARM_USE_OIDC: "true"
+      ARM_USE_CLI: "false"
+      ARM_USE_AZUREAD: "true"
+      ARM_RESOURCE_PROVIDER_REGISTRATIONS: none
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CORE_OUTPUT: none
+      AZURE_LOGIN_PRE_CLEANUP: "true"
+      AZURE_LOGIN_POST_CLEANUP: "true"
+    steps:
+      - name: Prepare isolated temporary files and check runner
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = github-runner
+          command -v az >/dev/null
+          command -v python3 >/dev/null
+          command -v terraform >/dev/null
+          terraform version -json | python3 -c 'import json,sys; assert json.load(sys.stdin)["terraform_version"] == "1.16.4", "Runner must use Terraform 1.16.4"'
+          umask 077
+          task_dir=$(mktemp -d "$RUNNER_TEMP/terraform-plan.XXXXXX")
+          echo "TASK_DIR=$task_dir" >> "$GITHUB_ENV"
+          echo "TF_DATA_DIR=$task_dir/terraform-data" >> "$GITHUB_ENV"
+          echo "AZURE_CONFIG_DIR=$task_dir/azure" >> "$GITHUB_ENV"
+          echo "TFVARS_FILE=$task_dir/inputs.tfvars" >> "$GITHUB_ENV"
+
+      - name: Check out the selected main commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Check Terraform formatting
+        run: terraform -chdir=Terraform fmt -check -recursive
+
+      - name: Load private Terraform inputs
+        env:
+          PRIVATE_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$PRIVATE_TFVARS" ]]; then
+            echo "::error::Add repository secret TERRAFORM_TFVARS containing your current workload terraform.tfvars."
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$PRIVATE_TFVARS" > "$TFVARS_FILE"
+
+      - name: Authenticate to Azure using OIDC
+        uses: azure/login@935127ca5bb3c4b02c9c2c10060028383878f33f # v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify existing state blob is accessible
+        run: |
+          set -euo pipefail
+          exists=$(az storage blob exists --account-name saanttfstate01 --container-name tfstate --name azure-lab.tfstate --auth-mode login --query exists --output tsv)
+          test "$exists" = true
+          echo "Existing state blob is accessible using the pipeline identity."
+
+      - name: Initialize with the committed provider lockfile
+        run: terraform -chdir=Terraform init -input=false -lockfile=readonly
+
+      - name: Validate Terraform configuration
+        run: terraform -chdir=Terraform validate -no-color
+
+      - name: Generate a saved plan
+        id: plan
+        run: |
+          set -euo pipefail
+          mkdir -p "$TASK_DIR/review"
+          set +e
+          terraform -chdir=Terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode -var-file="$TFVARS_FILE" -out="$TASK_DIR/review/lab.tfplan" > "$TASK_DIR/review/plan.txt" 2>&1
+          plan_status=$?
+          set -e
+          if [[ "$plan_status" != 0 && "$plan_status" != 2 ]]; then
+            echo "::error::Terraform plan failed. Review plan.txt in this run's private artifact."
+            exit "$plan_status"
+          fi
+          printf 'Commit: %s\nRun: %s\nTerraform: 1.16.4\nPlan exit code: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$plan_status" > "$TASK_DIR/review/provenance.txt"
+          if [[ "$plan_status" = 2 ]]; then
+            echo "Terraform proposes changes. Download the private plan artifact and review plan.txt." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Terraform found no changes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "No apply was performed." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload private plan review files
+        if: always() && steps.plan.outcome != 'skipped'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: terraform-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.TASK_DIR }}/review/
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Remove private inputs and temporary session
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${AZURE_CONFIG_DIR:-}" ]] && command -v az >/dev/null; then
+            az account clear || true
+          fi
+          if [[ -n "${TASK_DIR:-}" ]]; then
+            rm -rf -- "$TASK_DIR"
+          fi
