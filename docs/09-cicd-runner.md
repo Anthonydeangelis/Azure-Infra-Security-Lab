@@ -35,4 +35,14 @@ The workflow [Azure OIDC login test](../.github/workflows/azure-login-test.yml) 
 
 Push the workflow to `main`, then select **Actions → Azure OIDC login test → Run workflow**, with `main` selected. A successful run verifies authentication and resource-group read access only. State-container access, Terraform plans, subscription diagnostic-setting access, and applies remain unverified. This workflow does not run Terraform; the existing Terraform 1.16.4 / AzureRM 5.0.0 / Azure Blob backend configuration is unchanged.
 
-GitHub OIDC requires `id-token: write`; see [GitHub's Azure OIDC guidance](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-azure). Azure Login v2 remains supported in maintenance mode; the action is pinned to the official v2 revision reviewed for this test. See [Azure Login](https://github.com/Azure/login).
+GitHub OIDC requires `id-token: write`; see [GitHub's Azure OIDC guidance](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-azure). The initial successful test used pinned Azure Login v2. After reviewing its Node.js 20 deprecation warning, the workflow was upgraded to pinned Azure Login v3, which declares Node.js 24. A successful rerun of the upgraded workflow remains pending. See [Azure Login](https://github.com/Azure/login).
+
+## Successful login evidence
+
+On October 5, the supplied screenshot shows **Azure OIDC login test #2**, attempt 5, succeeded in 11 seconds. The dedicated runner-account check, OIDC authentication, service-principal/resource-group check, and cleanup steps succeeded. Two annotations are marked as warnings. The subsequently supplied text identifies a Node.js 20 deprecation warning for Azure Login v2; the other annotation's message was blank in the supplied text and remains unidentified.
+
+![Successful Azure OIDC login test](../screenshots/cicd/02-oidc-login-success.png)
+
+The initial login failure was a case-sensitive federated-subject mismatch in the GitHub owner name. Recreating only the credential with the exact subject emitted by GitHub corrected the capitalization. Azure persisted the corrected subject before the successful rerun. The app registration and role assignments were preserved.
+
+This confirms authentication and resource-group read access, not storage data-plane access or infrastructure write permissions. Next verify state-container access, then add Terraform validation and a reviewed plan. No Terraform apply has run through CI.
