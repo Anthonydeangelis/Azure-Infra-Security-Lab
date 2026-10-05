@@ -62,3 +62,7 @@ resource "azurerm_monitor_data_collection_rule_association" "linux_syslog" {
   target_resource_id      = azurerm_linux_virtual_machine.linux_vms[each.key].id
   data_collection_rule_id = azurerm_monitor_data_collection_rule.linux_syslog.id
 }
+
+resource "azurerm_sentinel_log_analytics_workspace_onboarding" "law-sentinal" {
+  workspace_id = azurerm_log_analytics_workspace.lab-law.id
+}
