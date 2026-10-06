@@ -26,6 +26,9 @@ class PlanChecks(unittest.TestCase):
     def test_reviewed_successful_run_is_accepted(self):
         check_run(self.run, self.repo, self.commit, "123", "2")
 
+    def test_successful_push_plan_is_accepted(self):
+        check_run(dict(self.run, event="push"), self.repo, self.commit, "123", "2")
+
     def test_failed_wrong_branch_commit_workflow_or_attempt_is_rejected(self):
         for key, value in {
             "conclusion": "failure", "head_branch": "feature",

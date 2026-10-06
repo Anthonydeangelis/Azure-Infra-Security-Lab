@@ -1,6 +1,8 @@
 name: Terraform validate and plan
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions: {}
@@ -17,6 +19,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      pull-requests: write
     defaults:
       run:
         shell: bash
@@ -122,11 +125,36 @@ jobs:
           (review / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
           PY
           if [[ "$plan_status" = 2 ]]; then
-            echo "Terraform proposes changes. Download the private plan artifact and review plan.txt." >> "$GITHUB_STEP_SUMMARY"
+            echo "Terraform proposes changes. Review the plan below before authorizing apply." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Terraform found no changes." >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "No apply was performed." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show plan in the run summary
+        if: always() && steps.plan.outcome != 'skipped'
+        run: |
+          python3 - <<'PY'
+          import html, os
+          from pathlib import Path
+          path = Path(os.environ["TASK_DIR"]) / "review" / "plan.txt"
+          if path.exists():
+              text = path.read_text()
+              truncated = len(text) > 50000
+              body = "\n## Terraform plan\n<details><summary>View plan output</summary>\n\n<pre>" + html.escape(text[:50000]) + "</pre>\n</details>\n"
+              if truncated:
+                  body += "\nOutput truncated. Review the artifact's full plan.txt before applying.\n"
+              body += f"\nPlan run ID: `{os.environ['GITHUB_RUN_ID']}` · Attempt: `{os.environ['GITHUB_RUN_ATTEMPT']}`\n"
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+                  summary.write(body)
+          PY
+
+      - name: Comment on the merged pull request
+        if: github.event_name == 'push' && steps.plan.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/comment_plan.py
 
       - name: Upload private plan review files
         if: always() && steps.plan.outcome != 'skipped'

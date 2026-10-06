@@ -13,7 +13,6 @@ def check_run(run, repository, commit, run_id, attempt):
     expected = {
         "id": int(run_id),
         "run_attempt": int(attempt),
-        "event": "workflow_dispatch",
         "head_branch": "main",
         "head_sha": commit,
         "status": "completed",
@@ -23,6 +22,8 @@ def check_run(run, repository, commit, run_id, attempt):
     for key, value in expected.items():
         if run.get(key) != value:
             raise ValueError(f"Plan run has unexpected {key}; create and review a fresh plan.")
+    if run.get("event") not in ("workflow_dispatch", "push"):
+        raise ValueError("Plan must be a manual run or a push to main.")
     for key in ("repository", "head_repository"):
         if run.get(key, {}).get("full_name", "").lower() != repository.lower():
             raise ValueError("Plan must originate from this repository, not a fork.")
