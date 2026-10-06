@@ -74,13 +74,14 @@ resource "azurerm_sentinel_alert_rule_scheduled" "name" {
   severity = "Low"
   enabled = true
   query_frequency   = "PT5M"
-  query_period      = "PT5M"
+  query_period      = "PT30M"
   trigger_operator  = "GreaterThan"
   trigger_threshold = 0
   query = <<QUERY
   AzureActivity
 | where ResourceGroup =~ "rg-azure-infra-security-lab"
 | where ActivityStatusValue =~ "Success"
+| where ingestion_time() > ago(5m)
 | where OperationNameValue in~ (
     "Microsoft.Network/networkSecurityGroups/write",
     "Microsoft.Network/networkSecurityGroups/securityRules/write",
