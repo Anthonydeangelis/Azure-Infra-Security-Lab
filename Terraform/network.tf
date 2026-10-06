@@ -135,8 +135,8 @@ resource "azurerm_network_security_group" "test_NSG" {
   location            = "eastus2"
 
   security_rule {
-  name                        = "Deny_All-Test"
-  priority                    = 200
+  name                        = "Deny_All-Test-number2"
+  priority                    = 201
   direction                   = "Inbound"
   access                      = "Deny"
   protocol                    = "*"
