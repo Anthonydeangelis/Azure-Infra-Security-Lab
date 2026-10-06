@@ -128,3 +128,9 @@ resource "azurerm_network_security_rule" "Deny_All" {
   network_security_group_name = azurerm_network_security_group.nsgs["web"].name
   resource_group_name         = var.rg-lab
 }
+
+resource "azurerm_network_security_group" "test_NSG" {
+  name = "Test-NSG"
+  resource_group_name = var.rg-lab
+  location = "eastus2"
+}
