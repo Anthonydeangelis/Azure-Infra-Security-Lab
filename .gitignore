@@ -47,3 +47,7 @@ id_ed25519
 # Local Ansible connection settings and output
 ansible/inventory.local*
 *.retry
+
+# Python CI helper caches
+__pycache__/
+*.pyc

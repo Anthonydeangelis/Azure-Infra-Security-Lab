@@ -1,0 +1,138 @@
+name: Terraform apply reviewed plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan_run_id:
+        description: "Run ID of the successful Terraform plan you reviewed"
+        required: true
+        type: string
+      plan_attempt:
+        description: "Attempt number of that reviewed plan run"
+        required: true
+        default: "1"
+        type: string
+      confirmation:
+        description: "Type APPLY to authorize deploying that reviewed saved plan"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: terraform-lab-state
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/main' && github.event.repository.private
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    env:
+      PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+      PLAN_ATTEMPT: ${{ inputs.plan_attempt }}
+      CONFIRM_APPLY: ${{ inputs.confirmation }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      ARM_USE_OIDC: "true"
+      ARM_USE_CLI: "false"
+      ARM_USE_AZUREAD: "true"
+      ARM_RESOURCE_PROVIDER_REGISTRATIONS: none
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Check confirmation and dedicated runner
+        run: |
+          set -euo pipefail
+          test "$CONFIRM_APPLY" = APPLY
+          [[ "$PLAN_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$PLAN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          test "$(id -un)" = github-runner
+          command -v python3 >/dev/null
+          terraform version -json | python3 -c 'import json,sys; assert json.load(sys.stdin)["terraform_version"] == "1.16.4", "Runner must use Terraform 1.16.4"'
+          umask 077
+          task_dir=$(mktemp -d "$RUNNER_TEMP/terraform-apply.XXXXXX")
+          echo "TASK_DIR=$task_dir" >> "$GITHUB_ENV"
+          echo "TF_DATA_DIR=$task_dir/terraform-data" >> "$GITHUB_ENV"
+
+      - name: Check out this main commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Verify reviewed plan run and artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/verify_plan.py run
+
+      - name: Download the selected saved plan
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          artifact-ids: ${{ steps.source.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ env.TASK_DIR }}/review
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Verify plan provenance and checksum
+        run: python3 scripts/ci/verify_plan.py artifact
+
+      - name: Initialize using OIDC and the committed provider lockfile
+        run: terraform -chdir=Terraform init -input=false -lockfile=readonly
+
+      - name: Recheck main and plan run before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/verify_plan.py run
+
+      - name: Apply the exact reviewed saved plan
+        id: deploy
+        run: |
+          set -euo pipefail
+          mkdir -p "$TASK_DIR/result"
+          if terraform -chdir=Terraform apply -input=false -no-color -lock-timeout=5m "$TASK_DIR/review/lab.tfplan" > "$TASK_DIR/result/apply.txt" 2>&1; then
+            echo "Reviewed plan applied successfully." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Apply failed. Review the private apply.txt artifact before retrying; some resources may have changed."
+            exit 1
+          fi
+          printf 'Commit: %s\nPlan run: %s\nPlan attempt: %s\nApply run: %s\n' "$GITHUB_SHA" "$PLAN_RUN_ID" "$PLAN_ATTEMPT" "$GITHUB_RUN_ID" > "$TASK_DIR/result/provenance.txt"
+
+      - name: Upload private deployment output
+        if: always() && steps.deploy.outcome != 'skipped'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: terraform-apply-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.TASK_DIR }}/result/
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Remove downloaded plan and temporary backend files
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -z "${TASK_DIR:-}" ]]; then
+            exit 0
+          fi
+          python3 - <<'PY'
+          import os, shutil, time
+          for attempt in range(5):
+              try:
+                  shutil.rmtree(os.environ["TASK_DIR"])
+                  break
+              except FileNotFoundError:
+                  break
+              except OSError:
+                  if attempt == 4:
+                      raise
+                  time.sleep(0.5)
+          PY

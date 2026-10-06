@@ -103,6 +103,24 @@ jobs:
             exit "$plan_status"
           fi
           printf 'Commit: %s\nRun: %s\nTerraform: 1.16.4\nPlan exit code: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$plan_status" > "$TASK_DIR/review/provenance.txt"
+          export PLAN_EXIT_CODE="$plan_status"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          review = Path(os.environ["TASK_DIR"]) / "review"
+          digest = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+          manifest = {
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "commit": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "terraform_version": "1.16.4",
+              "exit_code": int(os.environ["PLAN_EXIT_CODE"]),
+              "plan_sha256": digest(review / "lab.tfplan"),
+              "lockfile_sha256": digest("Terraform/.terraform.lock.hcl"),
+          }
+          (review / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
           if [[ "$plan_status" = 2 ]]; then
             echo "Terraform proposes changes. Download the private plan artifact and review plan.txt." >> "$GITHUB_STEP_SUMMARY"
           else
@@ -123,9 +141,22 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          if [[ -n "${AZURE_CONFIG_DIR:-}" ]] && command -v az >/dev/null; then
-            az account clear || true
+          if [[ -z "${TASK_DIR:-}" ]]; then
+            exit 0
           fi
-          if [[ -n "${TASK_DIR:-}" ]]; then
-            rm -rf -- "$TASK_DIR"
-          fi
+          # Remove inputs first; retry directory cleanup if a background writer races it.
+          rm -f -- "$TFVARS_FILE"
+          python3 - <<'PY'
+          import os, shutil, time
+          path = os.environ["TASK_DIR"]
+          for attempt in range(5):
+              try:
+                  shutil.rmtree(path)
+                  break
+              except FileNotFoundError:
+                  break
+              except OSError:
+                  if attempt == 4:
+                      raise
+                  time.sleep(0.5)
+          PY
