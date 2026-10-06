@@ -133,7 +133,8 @@ resource "azurerm_network_security_group" "test_NSG" {
   name                = "Test-NSG"
   resource_group_name = var.rg-lab
   location            = "eastus2"
-  security_rule = {
+
+  security_rule {
   name                        = "Deny_All-Test"
   priority                    = 200
   direction                   = "Inbound"
