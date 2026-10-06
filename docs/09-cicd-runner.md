@@ -95,6 +95,8 @@ Earlier apply attempts were blocked by a wrong plan attempt/run selection, then 
 
 ## Automatic plans after merging to main
 
+The author subsequently chose automatic formatting inside the runner checkout: `terraform -chdir=Terraform fmt -recursive` replaces the previous `fmt -check` gate. Spacing differences are corrected before validation and planning rather than failing the workflow. These formatting-only edits are not committed or pushed back to GitHub; the source commit still identifies the semantic configuration. Saved-plan apply still uses that commit and the unchanged provider lockfile. Invalid HCL or failed validation still stops the workflow. Local formatting is recommended when the author wants the repository itself to use standard formatting.
+
 The plan workflow now also triggers on pushes to `main`, including merged pull requests and direct pushes. Manual dispatch is retained for fresh plans and retries. It executes the committed main configuration on the trusted private-repository runner with the same OIDC identity and pinned Terraform 1.16.4 / AzureRM 5.0.0 configuration. Apply remains manually authorized; no automatic deployment trigger was added.
 
 Readable plan output is included in the run Summary. For automatic runs associated with a merged PR whose merge commit matches the run commit, `scripts/ci/comment_plan.py` posts the plan as a PR comment. The job has `pull-requests: write` for this purpose. Direct pushes without an associated merged PR show the Summary only. Failed plans show available diagnostic output in the Summary; PR comments are posted only for successful plans. Comment publication is best-effort and does not invalidate an otherwise valid saved plan if the comment API fails.
