@@ -66,3 +66,33 @@ resource "azurerm_monitor_data_collection_rule_association" "linux_syslog" {
 resource "azurerm_sentinel_log_analytics_workspace_onboarding" "law-sentinal" {
   workspace_id = azurerm_log_analytics_workspace.lab-law.id
 }
+
+resource "azurerm_sentinel_alert_rule_scheduled" "name" {
+  name = "6bda0e6e-ffa6-47c7-b5de-36cfd9977c86"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.lab-law.id
+  display_name = "NSG-config-change"
+  severity = "Low"
+  enabled = true
+  query_frequency   = "PT5M"
+  query_period      = "PT5M"
+  trigger_operator  = "GreaterThan"
+  trigger_threshold = 0
+  query = <<QUERY
+  AzureActivity
+| where ResourceGroup =~ "rg-azure-infra-security-lab"
+| where ActivityStatusValue =~ "Success"
+| where OperationNameValue in~ (
+    "Microsoft.Network/networkSecurityGroups/write",
+    "Microsoft.Network/networkSecurityGroups/securityRules/write",
+    "Microsoft.Network/networkSecurityGroups/securityRules/delete"
+)
+| project TimeGenerated, OperationNameValue, ActivityStatusValue,
+          Caller, ResourceId, Properties, CorrelationId
+QUERY
+incident {
+  create_incident_enabled = true
+  grouping {
+    enabled = false
+  }
+}
+}
