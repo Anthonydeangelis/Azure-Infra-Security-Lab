@@ -130,7 +130,7 @@ resource "azurerm_network_security_rule" "Deny_All" {
 }
 
 resource "azurerm_network_security_group" "test_NSG" {
-  name = "Test-NSG"
+  name                = "Test-NSG"
   resource_group_name = var.rg-lab
-  location = "eastus2"
+  location            = "eastus2"
 }
