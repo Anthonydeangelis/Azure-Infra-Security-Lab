@@ -133,4 +133,18 @@ resource "azurerm_network_security_group" "test_NSG" {
   name                = "Test-NSG"
   resource_group_name = var.rg-lab
   location            = "eastus2"
+  security_rule = {
+    name                        = "Deny_All-Test"
+  priority                    = 200
+  direction                   = "Inbound"
+  access                      = "Deny"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  network_security_group_name = azurerm_network_security_group.test_NSG.name
+  resource_group_name         = var.rg-lab
 }
+
+  }
