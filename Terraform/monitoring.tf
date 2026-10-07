@@ -68,32 +68,79 @@ resource "azurerm_sentinel_log_analytics_workspace_onboarding" "law-sentinal" {
 }
 
 resource "azurerm_sentinel_alert_rule_scheduled" "name" {
-  name = "6bda0e6e-ffa6-47c7-b5de-36cfd9977c86"
+  name                       = "6bda0e6e-ffa6-47c7-b5de-36cfd9977c86"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.lab-law.id
-  display_name = "NSG-config-change"
-  severity = "Low"
-  enabled = true
-  query_frequency   = "PT5M"
-  query_period      = "PT30M"
-  trigger_operator  = "GreaterThan"
-  trigger_threshold = 0
+  display_name               = "NSG-config-change"
+  severity                   = "Low"
+  enabled                    = true
+  query_frequency            = "PT5M"
+  query_period               = "PT30M"
+  trigger_operator           = "GreaterThan"
+  trigger_threshold          = 0
+  description                = "Detects successful NSG configuration changes. Investigate authorization and potential network exposure."
+
+  custom_details = {
+    NSGName       = "NSGName"
+    ResourceGroup = "ResourceGroup"
+    ResourceId    = "ResourcePath"
+    Actor         = "Caller"
+    CallerIP      = "CallerIpAddress"
+    Operation     = "OperationNameValue"
+    RuleName      = "RuleName"
+    EventTimeUTC  = "EventTimeUTC"
+    CorrelationId = "CorrelationId"
+  }
+
+  alert_details_override {
+    display_name_format = "NSG configuration changed: {{NSGName}}"
+    description_format  = "Actor {{Caller}} performed {{OperationNameValue}} at {{EventTimeUTC}} UTC. Review custom details and approved-change evidence."
+  }
+
+  entity_mapping {
+    entity_type = "AzureResource"
+
+    field_mapping {
+      identifier  = "ResourceId"
+      column_name = "ResourcePath"
+    }
+  }
+
+  event_grouping {
+    aggregation_method = "AlertPerResult"
+  }
   query = <<QUERY
   AzureActivity
-| where ResourceGroup =~ "rg-azure-infra-security-lab"
-| where ActivityStatusValue =~ "Success"
-| where ingestion_time() > ago(5m)
-| where OperationNameValue in~ (
-    "Microsoft.Network/networkSecurityGroups/write",
-    "Microsoft.Network/networkSecurityGroups/securityRules/write",
-    "Microsoft.Network/networkSecurityGroups/securityRules/delete"
-)
-| project TimeGenerated, OperationNameValue, ActivityStatusValue,
-          Caller, ResourceId, Properties, CorrelationId
+  | where ResourceGroup =~ "rg-azure-infra-security-lab"
+  | where ActivityStatusValue =~ "Success"
+  | where ingestion_time() > ago(5m)
+  | where OperationNameValue in~ (
+      "Microsoft.Network/networkSecurityGroups/write",
+      "Microsoft.Network/networkSecurityGroups/securityRules/write",
+      "Microsoft.Network/networkSecurityGroups/securityRules/delete"
+  )
+  | extend ResourcePath = coalesce(
+      _ResourceId,
+      ResourceId,
+      tostring(Authorization_d.scope)
+  )
+  | extend NSGName = coalesce(
+      extract(@"(?i)/networksecuritygroups/([^/]+)", 1, ResourcePath),
+      "Unidentified NSG"
+  )
+  | extend RuleName = coalesce(
+      extract(@"(?i)/securityrules/([^/]+)", 1, ResourcePath),
+      "NSG-level operation"
+  )
+  | extend EventTimeUTC =
+      format_datetime(TimeGenerated, "yyyy-MM-dd HH:mm:ss")
+  | project TimeGenerated, EventTimeUTC, NSGName, RuleName,
+            ResourceGroup, ResourcePath, Caller, CallerIpAddress,
+            OperationNameValue, ActivityStatusValue, CorrelationId
 QUERY
-incident {
-  create_incident_enabled = true
-  grouping {
-    enabled = false
+  incident {
+    create_incident_enabled = true
+    grouping {
+      enabled = false
+    }
   }
-}
 }
