@@ -63,3 +63,7 @@ variable "vnet-map" {
   }))
 
 }
+variable "la-name" {
+  type = string
+
+}
