@@ -144,3 +144,70 @@ QUERY
     }
   }
 }
+
+
+resource "azurerm_sentinel_alert_rule_scheduled" "ssh_failures" {
+  name                       = "d4715378-1d2c-4dd8-a4be-c462bc245fe1"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.lab-law.id
+  display_name               = "Repeated failed SSH authentication"
+  description                = "Detects five or more invalid-username or failed-password records from one source IP against one VM within 30 minutes."
+  severity                   = "Medium"
+  enabled                    = true
+
+  query_frequency   = "PT5M"
+  query_period      = "PT30M"
+  trigger_operator  = "GreaterThan"
+  trigger_threshold = 0
+
+  query = <<-QUERY
+    Syslog
+    | where TimeGenerated > ago(30m)
+    | where ProcessName in ("sshd", "sshd-session")
+    | where SyslogMessage startswith "Invalid user "
+        or (
+            SyslogMessage startswith "Failed password for "
+            and SyslogMessage !startswith "Failed password for invalid user "
+        )
+    | extend RemoteIP = extract(@"from (\S+) port", 1, SyslogMessage)
+    | where isnotempty(RemoteIP)
+    | extend IngestedAt = ingestion_time()
+    | summarize
+        FailureCount = count(),
+        LastSeen = max(TimeGenerated),
+        LatestIngestion = max(IngestedAt)
+        by Computer, RemoteIP
+    | where FailureCount >= 5
+    | where LatestIngestion > ago(5m)
+    | extend TimeGenerated = LastSeen
+  QUERY
+
+  entity_mapping {
+    entity_type = "Host"
+
+    field_mapping {
+      identifier  = "HostName"
+      column_name = "Computer"
+    }
+  }
+
+  entity_mapping {
+    entity_type = "IP"
+
+    field_mapping {
+      identifier  = "Address"
+      column_name = "RemoteIP"
+    }
+  }
+
+  event_grouping {
+    aggregation_method = "AlertPerResult"
+  }
+
+  incident {
+    create_incident_enabled = true
+
+    grouping {
+      enabled = false
+    }
+  }
+}
