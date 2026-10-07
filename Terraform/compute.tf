@@ -38,7 +38,7 @@ resource "azurerm_virtual_machine_extension" "ama" {
   for_each = {
     for key, vm in var.linux_vms :
     key => vm
-    if contains(["management", "web"], key)
+    if contains(["management", "web", "test"], key)
   }
 
   name                       = "AzureMonitorLinuxAgent"
