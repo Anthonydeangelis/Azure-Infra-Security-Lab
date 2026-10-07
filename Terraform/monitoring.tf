@@ -211,3 +211,64 @@ resource "azurerm_sentinel_alert_rule_scheduled" "ssh_failures" {
     }
   }
 }
+
+resource "azurerm_logic_app_workflow" "dns_rep" {
+  name                = var.la-name
+  resource_group_name = var.rg-lab
+  location            = var.location
+
+  identity {
+    type = "SystemAssigned"
+  }
+}
+
+resource "azurerm_logic_app_trigger_recurrence" "name" {
+  name         = "Every_Five_Mins"
+  logic_app_id = azurerm_logic_app_workflow.dns_rep.id
+  frequency    = "Minute"
+  interval     = 5
+}
+
+resource "azurerm_logic_app_action_custom" "query_dns" {
+  name         = "Query_DNS_Logs"
+  logic_app_id = azurerm_logic_app_workflow.dns_rep.id
+
+  body = jsonencode({
+    type     = "Http"
+    runAfter = {}
+
+    inputs = {
+      method = "POST"
+      uri    = "https://api.loganalytics.io/v1/workspaces/${azurerm_log_analytics_workspace.lab-law.workspace_id}/query"
+
+      headers = {
+        "Content-Type" = "application/json"
+      }
+
+      authentication = {
+        type     = "ManagedServiceIdentity"
+        audience = "https://api.loganalytics.io"
+      }
+
+      body = {
+        timespan = "PT30M"
+
+        query = <<-KQL
+          Syslog
+          | where TimeGenerated > ago(30m)
+          | where ingestion_time() > ago(5m)
+          | where Computer == "vm-lab-test-01"
+          | where ProcessName contains "unbound"
+          | parse SyslogMessage with * "info: " ClientIP:string " " QueriedDomain:string " " QueryType:string " IN" *
+          | where isnotempty(ClientIP) and isnotempty(QueriedDomain)
+          | extend QueriedDomain = trim_end(@"\.", tolower(QueriedDomain))
+          | summarize
+              FirstSeen = min(TimeGenerated),
+              LastSeen = max(TimeGenerated),
+              ClientIPs = make_set(ClientIP, 20)
+              by QueriedDomain
+        KQL
+      }
+    }
+  })
+}
