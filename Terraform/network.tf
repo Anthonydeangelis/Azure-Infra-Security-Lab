@@ -26,6 +26,7 @@ resource "azurerm_network_interface" "nics" {
   name                = "${each.value.name}-nic"
   resource_group_name = var.rg-lab
   location            = azurerm_virtual_network.vnets[var.subnets[each.value.subnet_key].vnet_key].location
+  dns_servers         = each.key == "management" ? ["10.60.1.4"] : []
 
 
   ip_configuration {
