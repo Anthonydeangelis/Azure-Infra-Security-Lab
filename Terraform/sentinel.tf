@@ -157,7 +157,7 @@ resource "azurerm_logic_app_workflow" "dns_rep" {
   }
 }
 
-resource "azurerm_logic_app_trigger_recurrence" "name" {
+resource "azurerm_logic_app_trigger_recurrence" "dns_rep_recur" {
   name         = "Every_Five_Mins"
   logic_app_id = azurerm_logic_app_workflow.dns_rep.id
   frequency    = "Minute"
