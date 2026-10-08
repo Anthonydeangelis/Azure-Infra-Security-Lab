@@ -155,6 +155,23 @@ resource "azurerm_logic_app_workflow" "dns_rep" {
   identity {
     type = "SystemAssigned"
   }
+
+  workflow_parameters = {
+    "$connections" = jsonencode({
+      type         = "Object"
+      defaultValue = {}
+    })
+  }
+
+  parameters = {
+    "$connections" = jsonencode({
+      virustotal = {
+        id             = data.azurerm_managed_api.virustotal.id
+        connectionId   = azurerm_api_connection.VT-API.id
+        connectionName = azurerm_api_connection.VT-API.name
+      }
+    })
+  }
 }
 
 resource "azurerm_logic_app_trigger_recurrence" "dns_rep_recur" {
@@ -206,4 +223,20 @@ resource "azurerm_logic_app_action_custom" "query_dns" {
       }
     }
   })
+}
+
+data "azurerm_managed_api" "virustotal" {
+  name     = "virustotal"
+  location = var.location
+}
+
+resource "azurerm_api_connection" "VT-API" {
+  name                = "Virus-Total-API"
+  resource_group_name = var.rg-lab
+  managed_api_id      = data.azurerm_managed_api.virustotal.id
+  display_name        = "VirusTotal domain reputation"
+
+  parameter_values = {
+    "x-api_key" = var.VTKey
+  }
 }

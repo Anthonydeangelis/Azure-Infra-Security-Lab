@@ -67,3 +67,7 @@ variable "la-name" {
   type = string
 
 }
+
+variable "VTKey" {
+  type = string
+}
