@@ -237,6 +237,6 @@ resource "azurerm_api_connection" "VT-API" {
   display_name        = "VirusTotal domain reputation"
 
   parameter_values = {
-    "x-api_key" = var.VTKey
+    "api_key" = var.VTKey
   }
 }
