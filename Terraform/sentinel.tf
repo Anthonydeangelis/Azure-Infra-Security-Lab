@@ -214,6 +214,13 @@ resource "azurerm_logic_app_action_custom" "query_dns" {
           | parse SyslogMessage with * "info: " ClientIP:string " " QueriedDomain:string " " QueryType:string " IN" *
           | where isnotempty(ClientIP) and isnotempty(QueriedDomain)
           | extend QueriedDomain = trim_end(@"\.", tolower(QueriedDomain))
+          // Skip only the observed monitoring hostnames; retain their raw Syslog records.
+          | where QueriedDomain !in~ (
+              "39466a12-2923-41bf-a682-9a9ebda8afc2.ods.opinsights.azure.com",
+              "ipv4-eus2-oi-ods-cses-a.eastus2.cloudapp.azure.com",
+              "ipv4-eus2-oi-ods-cses-b.eastus2.cloudapp.azure.com",
+              "ipv4-eus2-oi-ods-cses-d.eastus2.cloudapp.azure.com"
+          )
           | summarize
               FirstSeen = min(TimeGenerated),
               LastSeen = max(TimeGenerated),
