@@ -219,10 +219,55 @@ resource "azurerm_logic_app_action_custom" "query_dns" {
               LastSeen = max(TimeGenerated),
               ClientIPs = make_set(ClientIP, 20)
               by QueriedDomain
+          | project QueriedDomain, FirstSeen, LastSeen, ClientIPs
         KQL
       }
     }
   })
+}
+
+resource "azurerm_logic_app_action_custom" "check_domains" {
+  name         = "Check_Domains"
+  logic_app_id = azurerm_logic_app_workflow.dns_rep.id
+
+  body = jsonencode({
+    type = "Foreach"
+
+    # Start with one domain per run while testing the connection.
+    foreach = "@take(body('Query_DNS_Logs')['tables'][0]['rows'], 1)"
+
+    runAfter = {
+      Query_DNS_Logs = ["Succeeded"]
+    }
+
+    runtimeConfiguration = {
+      concurrency = {
+        repetitions = 1
+      }
+    }
+
+    actions = {
+      Get_Domain_Report = {
+        type     = "ApiConnection"
+        runAfter = {}
+
+        inputs = {
+          host = {
+            connection = {
+              name = "@parameters('$connections')['virustotal']['connectionId']"
+            }
+          }
+
+          method = "get"
+          path   = "/api/v3/domains/@{encodeURIComponent(items('Check_Domains')[0])}"
+        }
+      }
+    }
+  })
+
+  depends_on = [
+    azurerm_logic_app_action_custom.query_dns
+  ]
 }
 
 data "azurerm_managed_api" "virustotal" {
