@@ -271,12 +271,19 @@ resource "azurerm_logic_app_action_custom" "check_domains" {
           path   = "/api/v3/domains/@{encodeURIComponent(items('Check_Domains')[0])}"
         }
       }
+      Debug_VT_Stats = {
+        type = "Compose"
+        runAfter = {
+          Get_Domain_Report = ["Succeeded"]
+        }
+        inputs = "@body('Get_Domain_Report')?['attributes']?['last_analysis_stats']"
+      }
 
       # The workflow identity receives Sentinel Responder through portal IAM.
       Flagged_Domain = {
         type = "If"
         runAfter = {
-          Get_Domain_Report = ["Succeeded"]
+          Debug_VT_Stats = ["Succeeded"]
         }
         expression = "@or(greater(int(coalesce(body('Get_Domain_Report')?['attributes']?['last_analysis_stats']?['malicious'], 0)), 0), greater(int(coalesce(body('Get_Domain_Report')?['attributes']?['last_analysis_stats']?['suspicious'], 0)), 0))"
 
