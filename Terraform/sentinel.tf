@@ -271,63 +271,44 @@ resource "azurerm_logic_app_action_custom" "check_domains" {
           path   = "/api/v3/domains/@{encodeURIComponent(items('Check_Domains')[0])}"
         }
       }
-      Debug_VT_Stats = {
-        type = "Compose"
-        runAfter = {
-          Get_Domain_Report = ["Succeeded"]
-        }
-        inputs = "@outputs('Get_Domain_Report')"
-      }
-
-      # The workflow identity receives Sentinel Responder through portal IAM.
       Flagged_Domain = {
         type = "If"
         runAfter = {
-          Debug_VT_Stats = ["Succeeded"]
+          Get_Domain_Report = ["Succeeded"]
         }
         expression = "@or(greater(int(coalesce(body('Get_Domain_Report')?['data']?['attributes']?['last_analysis_stats']?['malicious'], 0)), 0), greater(int(coalesce(body('Get_Domain_Report')?['data']?['attributes']?['last_analysis_stats']?['suspicious'], 0)), 0))"
 
         actions = {
-          # Generate once so HTTP retries reuse the same incident ID.
-          Incident_ID = {
-            type     = "Compose"
-            inputs   = "@guid()"
+          For_Each_Client = {
+            type     = "Foreach"
+            foreach  = "@json(items('Check_Domains')[3])"
             runAfter = {}
-          }
-
-          Create_Incident = {
-            type = "Http"
-            runAfter = {
-              Incident_ID = ["Succeeded"]
+            runtimeConfiguration = {
+              concurrency = { repetitions = 1 }
             }
-            inputs = {
-              method = "PUT"
-              uri    = "https://management.azure.com${azurerm_log_analytics_workspace.lab-law.id}/providers/Microsoft.SecurityInsights/incidents/@{outputs('Incident_ID')}?api-version=2025-09-01"
-              headers = {
-                "Content-Type" = "application/json"
-              }
-              authentication = {
-                type     = "ManagedServiceIdentity"
-                audience = "https://management.azure.com/"
-              }
-              body = {
-                properties = {
-                  title                = "DNS reputation flagged: @{items('Check_Domains')[0]}"
-                  severity             = "Medium"
-                  status               = "New"
-
-                  description = <<-TEXT
-                  Domain: @{items('Check_Domains')[0]}
-                  Client IPs: @{join(json(items('Check_Domains')[3]), ', ')}
-                  VirusTotal result: @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['malicious']} malicious, @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['suspicious']} suspicious verdicts
-                  First DNS request (UTC): @{items('Check_Domains')[1]}
-                  Last DNS request (UTC): @{items('Check_Domains')[2]}
-                  VirusTotal report: https://www.virustotal.com/gui/domain/@{encodeURIComponent(items('Check_Domains')[0])}
-                  TEXT
-
-                  
-                  firstActivityTimeUtc = "@items('Check_Domains')[1]"
-                  lastActivityTimeUtc  = "@items('Check_Domains')[2]"
+            actions = {
+              Save_Flagged_Result = {
+                type     = "Http"
+                runAfter = {}
+                inputs = {
+                  method  = "POST"
+                  uri     = "${azurerm_monitor_data_collection_endpoint.dns_reputation.logs_ingestion_endpoint}/dataCollectionRules/${azurerm_monitor_data_collection_rule.dns_reputation.immutable_id}/streams/Custom-DNSReputation?api-version=2023-01-01"
+                  headers = { "Content-Type" = "application/json" }
+                  authentication = {
+                    type     = "ManagedServiceIdentity"
+                    audience = "https://monitor.azure.com"
+                  }
+                  body = [{
+                    TimeGenerated   = "@utcNow()"
+                    Domain          = "@items('Check_Domains')[0]"
+                    ClientIP        = "@items('For_Each_Client')"
+                    MaliciousCount  = "@int(body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['malicious'])"
+                    SuspiciousCount = "@int(body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['suspicious'])"
+                    DNSFirstSeen    = "@items('Check_Domains')[1]"
+                    DNSLastSeen     = "@items('Check_Domains')[2]"
+                    VTAnalysisEpoch = "@int(coalesce(body('Get_Domain_Report')?['data']?['attributes']?['last_analysis_date'], 0))"
+                    WorkflowRunId   = "@workflow().run.name"
+                  }]
                 }
               }
             }
