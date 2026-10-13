@@ -285,7 +285,7 @@ resource "azurerm_logic_app_action_custom" "check_domains" {
         runAfter = {
           Debug_VT_Stats = ["Succeeded"]
         }
-        expression = "@or(greater(int(coalesce(body('Get_Domain_Report')?['attributes']?['last_analysis_stats']?['malicious'], 0)), 0), greater(int(coalesce(body('Get_Domain_Report')?['attributes']?['last_analysis_stats']?['suspicious'], 0)), 0))"
+        expression = "@or(greater(int(coalesce(body('Get_Domain_Report')?['data']?['attributes']?['last_analysis_stats']?['malicious'], 0)), 0), greater(int(coalesce(body('Get_Domain_Report')?['data']?['attributes']?['last_analysis_stats']?['suspicious'], 0)), 0))"
 
         actions = {
           # Generate once so HTTP retries reuse the same incident ID.
@@ -315,7 +315,7 @@ resource "azurerm_logic_app_action_custom" "check_domains" {
                   title                = "DNS reputation flagged: @{items('Check_Domains')[0]}"
                   severity             = "Medium"
                   status               = "New"
-                  description          = "Domain: @{items('Check_Domains')[0]}. Client IPs: @{items('Check_Domains')[3]}. Malicious verdicts: @{body('Get_Domain_Report')['attributes']['last_analysis_stats']['malicious']}. Suspicious verdicts: @{body('Get_Domain_Report')['attributes']['last_analysis_stats']['suspicious']}. VirusTotal report: https://www.virustotal.com/gui/domain/@{encodeURIComponent(items('Check_Domains')[0])}. Workflow run: @{workflow().run.name}. A DNS lookup and reputation verdict do not prove compromise."
+                  description          = "Domain: @{items('Check_Domains')[0]}. Client IPs: @{items('Check_Domains')[3]}. Malicious verdicts: @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['malicious']}. Suspicious verdicts: @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['suspicious']}. VirusTotal report: https://www.virustotal.com/gui/domain/@{encodeURIComponent(items('Check_Domains')[0])}. Workflow run: @{workflow().run.name}. A DNS lookup and reputation verdict do not prove compromise."
                   firstActivityTimeUtc = "@items('Check_Domains')[1]"
                   lastActivityTimeUtc  = "@items('Check_Domains')[2]"
                 }
