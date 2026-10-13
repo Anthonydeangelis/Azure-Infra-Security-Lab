@@ -219,7 +219,9 @@ resource "azurerm_logic_app_action_custom" "query_dns" {
               "39466a12-2923-41bf-a682-9a9ebda8afc2.ods.opinsights.azure.com",
               "ipv4-eus2-oi-ods-cses-a.eastus2.cloudapp.azure.com",
               "ipv4-eus2-oi-ods-cses-b.eastus2.cloudapp.azure.com",
-              "ipv4-eus2-oi-ods-cses-d.eastus2.cloudapp.azure.com"
+              "ipv4-eus2-oi-ods-cses-d.eastus2.cloudapp.azure.com",
+              "global.handler.control.monitor.azure.com"
+              "sfmc-amcs-prod-eus-1-handler.eastus.cloudapp.azure.com"
           )
           | summarize
               FirstSeen = min(TimeGenerated),
