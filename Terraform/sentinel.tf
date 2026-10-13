@@ -276,7 +276,7 @@ resource "azurerm_logic_app_action_custom" "check_domains" {
         runAfter = {
           Get_Domain_Report = ["Succeeded"]
         }
-        inputs = "@body('Get_Domain_Report')?['attributes']?['last_analysis_stats']"
+        inputs = "@outputs('Get_Domain_Report')"
       }
 
       # The workflow identity receives Sentinel Responder through portal IAM.
