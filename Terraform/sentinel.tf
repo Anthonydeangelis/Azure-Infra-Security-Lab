@@ -315,7 +315,17 @@ resource "azurerm_logic_app_action_custom" "check_domains" {
                   title                = "DNS reputation flagged: @{items('Check_Domains')[0]}"
                   severity             = "Medium"
                   status               = "New"
-                  description          = "Domain: @{items('Check_Domains')[0]}. Client IPs: @{items('Check_Domains')[3]}. Malicious verdicts: @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['malicious']}. Suspicious verdicts: @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['suspicious']}. VirusTotal report: https://www.virustotal.com/gui/domain/@{encodeURIComponent(items('Check_Domains')[0])}. Workflow run: @{workflow().run.name}. A DNS lookup and reputation verdict do not prove compromise."
+
+                  description = <<-TEXT
+                  Domain: @{items('Check_Domains')[0]}
+                  Client IPs: @{join(json(items('Check_Domains')[3]), ', ')}
+                  VirusTotal result: @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['malicious']} malicious, @{body('Get_Domain_Report')['data']['attributes']['last_analysis_stats']['suspicious']} suspicious verdicts
+                  First DNS request (UTC): @{items('Check_Domains')[1]}
+                  Last DNS request (UTC): @{items('Check_Domains')[2]}
+                  VirusTotal report: https://www.virustotal.com/gui/domain/@{encodeURIComponent(items('Check_Domains')[0])}
+                  TEXT
+
+                  
                   firstActivityTimeUtc = "@items('Check_Domains')[1]"
                   lastActivityTimeUtc  = "@items('Check_Domains')[2]"
                 }
