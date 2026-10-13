@@ -71,3 +71,7 @@ variable "la-name" {
 variable "VTKey" {
   type = string
 }
+
+variable "sfc-ip" {
+  type = string
+}
