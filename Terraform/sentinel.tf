@@ -220,7 +220,7 @@ resource "azurerm_logic_app_action_custom" "query_dns" {
               "ipv4-eus2-oi-ods-cses-a.eastus2.cloudapp.azure.com",
               "ipv4-eus2-oi-ods-cses-b.eastus2.cloudapp.azure.com",
               "ipv4-eus2-oi-ods-cses-d.eastus2.cloudapp.azure.com",
-              "global.handler.control.monitor.azure.com"
+              "global.handler.control.monitor.azure.com",
               "sfmc-amcs-prod-eus-1-handler.eastus.cloudapp.azure.com"
           )
           | summarize
