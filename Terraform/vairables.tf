@@ -76,6 +76,6 @@ variable "sfc-ip" {
   type = string
 }
 
-variable "var.incident_email_recipient"{
+variable "incident_email_recipient"{
   type = string
 }
