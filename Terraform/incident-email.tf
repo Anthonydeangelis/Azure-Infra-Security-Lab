@@ -127,3 +127,32 @@ resource "azurerm_logic_app_action_custom" "send_incident_email" {
 
   depends_on = [azurerm_logic_app_action_custom.incident_email_details]
 }
+
+# Notify only for newly created incidents linked to the DNS reputation rule.
+# Sentinel's service identity needs Automation Contributor on the playbook RG
+# (managed in portal IAM); the playbook identity separately needs Sentinel Reader.
+resource "azurerm_sentinel_automation_rule" "dns_incident_email" {
+  name                       = "527c93ee-ae45-43af-b7ec-b014ff09b8ad"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.lab-law.id
+  display_name               = "Email new sec incidents"
+  order                      = 100
+  enabled                    = true
+  triggers_on                = "Incidents"
+  triggers_when              = "Created"
+
+  condition_json = jsonencode([{
+    conditionType = "Property"
+    conditionProperties = {
+      propertyName   = "IncidentRelatedAnalyticRuleIds"
+      operator       = "Contains"
+      propertyValues = [azurerm_sentinel_alert_rule_scheduled.dns_reputation.id, azurerm_sentinel_alert_rule_scheduled.ssh_failures.id, azurerm_sentinel_alert_rule_scheduled.nsg-config.id]
+    }
+  }])
+
+  action_playbook {
+    order        = 1
+    logic_app_id = azurerm_logic_app_workflow.incident_email.id
+  }
+
+  depends_on = [azurerm_logic_app_action_custom.send_incident_email]
+}

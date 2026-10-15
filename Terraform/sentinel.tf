@@ -2,7 +2,7 @@ resource "azurerm_sentinel_log_analytics_workspace_onboarding" "law-sentinal" {
   workspace_id = azurerm_log_analytics_workspace.lab-law.id
 }
 
-resource "azurerm_sentinel_alert_rule_scheduled" "name" {
+resource "azurerm_sentinel_alert_rule_scheduled" "nsg-config" {
   name                       = "6bda0e6e-ffa6-47c7-b5de-36cfd9977c86"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.lab-law.id
   display_name               = "NSG-config-change"
