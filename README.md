@@ -1,8 +1,156 @@
 # Azure Infrastructure & Security Lab
 
-I built this lab to connect Azure infrastructure deployment with Linux administration, security monitoring, and incident response. Terraform provisions the environment, Ansible configures workloads, and Microsoft Sentinel turns Azure activity and Linux telemetry into investigations.
+**From Terraform deployment to a security incident in your inbox.**
 
-The main security workflow follows a DNS lookup from a Linux client through Unbound, Log Analytics, a VirusTotal reputation check, and a Sentinel analytics rule. A controlled test produced an alert and incident in Microsoft Defender with the queried domain and client IP as investigation entities. A separate incident-response playbook automatically delivered notifications to Gmail through an Outlook.com connection. DNS reputation, NSG changes, and invalid-user SSH failures have all been tested through incident creation and email delivery.
+![Terraform 1.16.4](https://img.shields.io/badge/Terraform-1.16.4-844FBA) ![AzureRM 5.0.0](https://img.shields.io/badge/AzureRM-5.0.0-0078D4) ![Purpose: security lab](https://img.shields.io/badge/Purpose-Security%20lab-2E7D32)
+
+<!-- Add a CI status badge after selecting the intended public repository and workflow. -->
+
+An Azure infrastructure and security lab for practicing cloud engineering, Linux administration, and SOC investigation workflows. Terraform provisions the environment, Ansible configures Linux workloads, and Microsoft Sentinel correlates Azure activity, SSH failures, and VirusTotal-enriched DNS evidence into Defender incidents. A shared Logic App playbook automatically sends incident notifications through Outlook.com to the configured recipient.
+
+Built for reviewers and learners who want to follow the implementation, the validation evidence, and the reasoning behind the design—not just a resource inventory.
+
+[Features](#features) · [Tech stack](#tech-stack) · [Getting started](#getting-started) · [Architecture](#architecture) · [Build and evidence](#what-i-built) · [Lessons learned](#mistakes-troubleshooting-and-what-i-learned) · [Project structure](#project-structure) · [Contributing](#contributing)
+
+## Features
+
+- **Repeatable infrastructure:** five Ubuntu VMs, two peered VNets, private workload addressing, and separately bootstrapped Azure Blob state.
+- **Controlled administration and configuration:** SSH jump-host access, Ansible-managed Nginx, and tested web-tier allow/deny rules.
+- **Verified security detections:** NSG configuration changes, repeated invalid-user SSH activity, and flagged DNS reputation produce alert-backed incidents in Defender.
+- **Reusable response automation:** an incident-triggered playbook delivers email notifications for all three detection types.
+- **Reviewed deployment pipeline:** a private self-hosted GitHub runner uses OIDC, automatically generates plans, and applies a specifically selected saved plan through manual dispatch.
+
+## Tech Stack
+
+| Category | Technologies | Role |
+| --- | --- | --- |
+| Infrastructure and state | Terraform 1.16.4, AzureRM 5.0.0, Azure Resource Manager templates, Azure Blob Storage | Resource provisioning, connection deployment, remote state and locking |
+| Compute and networking | Azure VMs, Ubuntu 24.04 LTS, VNets, subnets, peering, NSGs | Workloads, private access, and network segmentation |
+| Guest configuration | Ansible / YAML, Nginx, Unbound | Web service configuration and DNS query visibility |
+| Collection and analytics | Azure Monitor Agent, diagnostic settings, DCRs, DCE, Log Analytics, KQL | Administrative/guest collection, custom verdict ingestion, querying |
+| Detection and response | Microsoft Sentinel, Microsoft Defender portal, Azure Logic Apps, VirusTotal, Outlook.com | Alerts, incidents, reputation enrichment, and notifications |
+| CI/CD and helper code | GitHub Actions / YAML, Bash, Python, GitHub OIDC, Microsoft Entra ID | Plans, saved-plan verification, deployment authentication |
+| Administration | Azure CLI, OpenSSH, Git, Tailscale for runner access | Operations and troubleshooting |
+
+The database VM is an infrastructure role in the lab. A configured database engine, schema, or application database is **not** a demonstrated feature. `DNSReputation_CL` is a Log Analytics custom table for security evidence.
+
+## Getting Started
+
+This project deploys real Azure resources and can incur charges. The instructions are a starting path for a separate lab subscription; existing screenshots describe the author's environment. Adapt resource names, IPs, regional choices, backend settings, and private inputs before deployment.
+
+### Prerequisites
+
+- An Azure subscription with quota and available VM SKUs in the selected regions. The tested layout uses East US 2 and East US; availability must be checked for your subscription.
+- Azure CLI, Git, **Terraform 1.16.4**, Python 3 for CI helper scripts, and an Ansible control node with OpenSSH.
+- Azure permissions appropriate to the scopes being deployed. Bootstrap creates role assignments; resource-group Contributor alone is insufficient for those assignments or subscription provider registration.
+- Registered providers for the services in use, including Compute, Network, Storage, OperationalInsights, Insights, SecurityInsights, Logic, and Web. See the [deployment troubleshooting history](docs/03-deployment-blockers.md).
+- An SSH key pair. Supply only the public key to Terraform; keep the private key on your trusted client.
+- A VirusTotal API key and an Outlook.com mailbox for reputation checks and email sending. API limits and connector authorization remain relevant even in a small lab.
+- For CI: a private GitHub repository, a dedicated self-hosted Linux runner, an Entra federated identity for the intended repository/branch, scoped Azure roles, and the documented repository secrets. See [CI/CD setup](docs/09-cicd-runner.md).
+
+### Installation
+
+**1. Clone and prepare private configuration.**
+
+```bash
+git clone https://github.com/Anthonydeangelis/Azure-Infra-Security-Lab.git
+cd Azure-Infra-Security-Lab
+
+cp bootstrap/terraform.tfvars.example bootstrap/terraform.tfvars
+cp Terraform/terraform.tfvars.example Terraform/terraform.tfvars
+```
+
+Replace the placeholders in both private files. If a file already exists, preserve your inputs rather than overwriting it. The repository is currently private, so cloning requires authorized GitHub access.
+
+The workload example is a starting inventory, not a complete environment file. Check [vairables.tf](Terraform/vairables.tf) and [incident-email.tf](Terraform/incident-email.tf) for required inputs. These include `la-name`, `VTKey`, `sfc-ip`, and `incident_email_recipient` in addition to the compute/network values. Set the real values privately; don't commit a populated file or a mailbox password. The `sfc-ip` input controls an additional management SSH allow rule—use only an intended administrator source.
+
+**2. Authenticate locally and bootstrap state storage.**
+
+```bash
+az login
+az account set --subscription "YOUR_SUBSCRIPTION_ID"
+
+terraform -chdir=bootstrap init
+terraform -chdir=bootstrap validate
+terraform -chdir=bootstrap plan -out=bootstrap.tfplan
+```
+
+Review the plan's resource groups, storage settings, allowed public IP, and role assignments before applying:
+
+```bash
+terraform -chdir=bootstrap apply bootstrap.tfplan
+```
+
+Bootstrap includes the workload resource group because the workload root reads it as an existing resource group. Preserve the separate bootstrap state; the workload state stored in the blob does not replace it. See the [bootstrap runbook](docs/01-state-storage-bootstrap.md).
+
+**3. Configure the workload backend and create a reviewed plan.**
+
+Update the account/container values in [backend.tf](Terraform/backend.tf) for your storage account. Backend settings do not automatically inherit the similarly named tfvars inputs. Ensure the executing machine's network path is allowed and its identity has the required Blob data access.
+
+```bash
+terraform -chdir=Terraform init
+terraform -chdir=Terraform fmt -check -recursive
+terraform -chdir=Terraform validate
+terraform -chdir=Terraform plan -out=lab.tfplan
+```
+
+Review the complete plan, including replacements, role scopes, external API connections, and costs, then apply the exact reviewed plan:
+
+```bash
+terraform -chdir=Terraform apply lab.tfplan
+```
+
+For the established CI deployment path, use the [GitHub plan and apply workflows](.github/workflows/) instead of running concurrent local applies. After a partial apply or any state-changing operation, generate a fresh plan.
+
+**4. Complete configuration and authorization.**
+
+- Configure your private Ansible inventory, SSH jump-host settings, and web host group, then run the web playbook.
+- Synchronize the tested Unbound role from the control node. The current `ansible/dns.yml` is a known reproduction gap and still contains Nginx tasks.
+- Grant the reputation workflow Log Analytics query access and Monitoring Metrics Publisher on its ingestion DCR.
+- Grant the email playbook Sentinel Reader on the workspace and Sentinel's service identity Automation Contributor on the playbook resource group.
+- Authorize the Outlook.com API connection interactively. Terraform creates the connection resource; it does not perform the mailbox sign-in.
+- For CI, update `TERRAFORM_TFVARS` when private inputs change; GitHub does not read the ignored local file.
+
+The [security automation runbook](docs/10-dns-and-security-automation.md) explains these dependencies and the validation sequence.
+
+### Local Usage
+
+There is no local development web server to start for the whole project. The deployed application runs on Azure VMs; local commands validate configuration, administer services, and generate controlled test activity.
+
+Validate the workload configuration without applying it:
+
+```bash
+terraform -chdir=Terraform fmt -check -recursive
+terraform -chdir=Terraform validate
+```
+
+Configure the web VM using your private inventory:
+
+```bash
+ansible-playbook -i /path/to/private-inventory.ini ansible/web.yml
+```
+
+From the management VM, test the resolver and web service using the lab's private addresses:
+
+```bash
+dig @10.60.1.4 example.com
+dig +tcp @10.60.1.4 example.com
+curl --fail --max-time 20 http://10.50.2.4
+```
+
+Inspect saved reputation evidence in the workspace's Logs editor:
+
+```kql
+DNSReputation_CL
+| where TimeGenerated > ago(1h)
+| project TimeGenerated, Domain, ClientIP, MaliciousCount,
+          SuspiciousCount, DNSFirstSeen, DNSLastSeen
+| order by TimeGenerated desc
+```
+
+The DNS reputation workflow currently selects **`linkcoll.net` only** as a temporary test filter. An ordinary `example.com` lookup validates resolution, not a reputation alert. See [remaining limits](#remaining-improvements-and-honest-limits) before broadening collection or generating test incidents that trigger email.
+
+
 
 ## Why I built this lab
 
@@ -322,7 +470,28 @@ The core validation is complete; these are reproducibility and operational impro
 - Complete guest data-disk configuration, broader workload segmentation, outbound policy, and any additional telemetry only if the next project scope calls for them.
 - Clean up temporary NSG test rules, check a final reviewed plan, review repository history and screenshots, and confirm rotation of the VT credential exposed in earlier private plan output. The input is now marked sensitive, but that does not remove old copies from history/artifacts or encrypt Terraform state.
 
-## Repository guide
+## Project Structure
+
+```text
+Azure-Infra-Security-Lab/
+├── bootstrap/                      # State storage and initial resource groups
+├── Terraform/
+│   ├── backend.tf                  # Azure Blob workload backend
+│   ├── compute.tf                  # VMs, disks, and agent extensions
+│   ├── network.tf                  # VNets, subnets, NSGs, and peering
+│   ├── monitoring.tf               # Workspace and initial log collection
+│   ├── sentinel.tf                 # Detections and DNS reputation workflow
+│   ├── dns-reputation-alerts.tf     # Verdict table, ingestion, DNS analytics rule
+│   ├── incident-email.tf           # Sentinel trigger, email action, automation rule
+│   ├── vairables.tf                # Workload variables (existing filename)
+│   └── terraform.tfvars.example    # Sanitized starting inputs
+├── ansible/                        # Guest configuration playbooks
+├── .github/workflows/              # OIDC test, Terraform plan, reviewed-plan apply
+├── scripts/ci/                     # Plan provenance, checks, and comment helpers
+├── docs/                           # Runbooks, decisions, and troubleshooting
+└── screenshots/                    # Validation evidence organized by milestone
+```
+
 
 | Path | Purpose |
 | --- | --- |
@@ -349,3 +518,38 @@ This remains a lab implementation. Five-minute ingestion filters reduce repeated
 VMs, disks, Log Analytics/Sentinel ingestion, retention, and Logic App executions can incur charges. Workspace quotas are not hard spending caps. Budget and backup configuration files are currently placeholders.
 
 Deallocate unused VMs with the resolver dependency in mind; DNS and telemetry coverage change when services are offline. Storage can continue to incur charges after VM deallocation. Keep validation NSGs unattached, preserve state and investigation evidence, and review a destruction plan before removing infrastructure.
+
+
+## Contributing
+
+Suggestions, documentation corrections, and focused improvements are welcome. Repository access is currently private; GitHub issues, forks, and pull requests depend on access being enabled for your account. No separate contribution agreement or code of conduct has been adopted yet.
+
+1. Describe the problem and intended behavior in an issue or PR description.
+2. Create a focused branch from `main`; keep credentials, real tfvars, state, saved plans, and personal mailbox details out of commits.
+3. Run relevant checks and explain what was tested. For Terraform changes:
+
+   ```bash
+   terraform -chdir=Terraform fmt -check -recursive
+   terraform -chdir=Terraform validate
+   ```
+
+4. For resource-address changes, include the appropriate migration strategy and review the plan for unintended deletion/recreation.
+5. Submit a pull request with the change, rationale, validation results, and any runtime or cost impact. Update the corresponding documentation and evidence when behavior changes.
+
+Use your own subscription for deployment tests. The current Azure-connected workflows run on the trusted private repository's `main` branch; they are not a public fork-PR execution service. Infrastructure applies and email-sending tests need explicit coordination with the environment owner.
+
+## License
+
+**License selection pending.** No `LICENSE` file is included yet. This README does not grant an MIT or other open-source license.
+
+<!-- TODO: Choose a license, add its complete LICENSE file, and replace this section with the selected license and link. -->
+
+## Contact / Author
+
+Built and documented by **Anthony DeAngelis**.
+
+- GitHub: [@Anthonydeangelis](https://github.com/Anthonydeangelis)
+- Project: [Azure Infrastructure & Security Lab](https://github.com/Anthonydeangelis/Azure-Infra-Security-Lab)
+- Related project: [Hybrid Identity and Security Homelab](https://github.com/Anthonydeangelis/hybridhomelab)
+
+For questions or feedback, use a repository issue when available or the contact channels listed on my GitHub profile. A personal email address is intentionally not published here.
