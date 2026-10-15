@@ -214,6 +214,8 @@ resource "azurerm_logic_app_action_custom" "query_dns" {
           | parse SyslogMessage with * "info: " ClientIP:string " " QueriedDomain:string " " QueryType:string " IN" *
           | where isnotempty(ClientIP) and isnotempty(QueriedDomain)
           | extend QueriedDomain = trim_end(@"\.", tolower(QueriedDomain))
+          // Temporary deterministic test: other domains remain in Syslog but skip VT.
+          | where QueriedDomain == "linkcoll.net"
           // Skip only the observed monitoring hostnames; retain their raw Syslog records.
           | where QueriedDomain !in~ (
               "39466a12-2923-41bf-a682-9a9ebda8afc2.ods.opinsights.azure.com",
@@ -222,7 +224,7 @@ resource "azurerm_logic_app_action_custom" "query_dns" {
               "ipv4-eus2-oi-ods-cses-d.eastus2.cloudapp.azure.com",
               "global.handler.control.monitor.azure.com",
               "sfmc-amcs-prod-eus-1-handler.eastus.cloudapp.azure.com",
-              "https://api.loganalytics.io/v1/workspaces/39466a12-2923-41bf-a682-9a9ebda8afc2/query" 
+              "api.loganalytics.io"
           )
           | summarize
               FirstSeen = min(TimeGenerated),
