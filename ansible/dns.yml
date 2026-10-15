@@ -1,0 +1,6 @@
+---
+- name: Configure the lab DNS resolver
+  hosts: test
+  become: true
+  roles:
+    - role: unbound

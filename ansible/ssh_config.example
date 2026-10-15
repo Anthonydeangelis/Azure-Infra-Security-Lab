@@ -1,0 +1,8 @@
+# Copy/adapt this stanza into your private ~/.ssh/config.
+# 203.0.113.10 is a documentation-only address. Replace it with management's public IP.
+Host azure-lab-mgmt
+    HostName 203.0.113.10
+    User labadmin
+    IdentityFile ~/.ssh/azure_lab
+    IdentitiesOnly yes
+    StrictHostKeyChecking ask

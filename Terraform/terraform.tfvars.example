@@ -101,3 +101,11 @@ vnet-map = {
     address_space = ["10.60.0.0/16"]
   }
 }
+
+# Set your actual recipient privately; update the CI TERRAFORM_TFVARS secret too.
+incident_email_recipient = "analyst@example.com"
+
+# Required workflow and administration inputs. Keep the real key private.
+la-name = "dns-rep"
+VTKey   = "REPLACE_WITH_YOUR_VIRUSTOTAL_API_KEY"
+sfc-ip  = "203.0.113.11"

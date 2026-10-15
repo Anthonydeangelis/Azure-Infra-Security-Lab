@@ -1,36 +1,51 @@
-# Repository setup and publication review
+# Repository review
 
-Reviewed October 5, 2026. This repository demonstrates an in-progress learning lab. Sentinel, incident response, complete segmentation, explicit outbound connectivity, backup/restore, policy, budget alerts and OIDC CI/CD are not claimed complete.
+Reviewed October 15, 2026: publishable source, examples, workflows, documentation, 57 reachable Git commits, and all 37 committed screenshots. The README records the completed lab and links to the test evidence; dated runbooks preserve the build history.
 
-## Execution context
+## Verified work
 
-Terraform 1.16.4 and pinned AzureRM 5.0.0; workload state uses Azure Blob with Entra authentication. Bootstrap owns the state storage, role assignment and resource groups. Workload references the existing group and owns workload resources. Ansible runs on the Mac using local SSH configuration and private keys outside Git.
+- Five Azure VMs, peered networking, Blob-backed Terraform state, and private administration through management.
+- Ansible-managed Nginx with a no-change repeat run; Unbound resolution tested over UDP and TCP.
+- Azure Activity and guest Syslog ingestion into Log Analytics.
+- DNS reputation, NSG changes, and invalid-user SSH activity each producing an alert-backed Defender incident and automatic email.
+- GitHub OIDC authentication and reviewed saved-plan deployment workflows.
 
-## Private inputs and setup
+The included Unbound role recreates the documented configuration. The original Mac-local role was tested live; the included version passes local checks and has not been deployed. This distinction does not change the results shown in the original screenshots.
 
-Reviewed examples are provided at [workload inputs](../Terraform/terraform.tfvars.example) and [bootstrap inputs](../bootstrap/terraform.tfvars.example). They use a zero GUID, documentation-only IP, and explicit placeholders for identity/key/storage values. VM sizes and regions illustrate this author's subscription constraints; availability and pricing must be checked for a new subscription.
+## Repository corrections
 
-1. Install the verified Terraform/provider versions, Azure CLI, and authenticate to the intended subscription. Register required providers, including Microsoft.Compute, Microsoft.Network, Microsoft.Storage, Microsoft.OperationalInsights and Microsoft.Insights.
-2. Copy each example to that root's private `terraform.tfvars`; replace placeholders and review all values. The existing backend account name in `Terraform/backend.tf` identifies this lab and is not a credential. For a separate deployment, configure your own backend before initialization. Never accidentally use the author's live state or let two states own one resource.
-3. Bootstrap is initialized separately and currently uses local state. Review its plan before applying and keep an encrypted backup of its state outside Git. The bootstrap provider uses the selected Azure CLI subscription; confirm it matches your intended subscription.
-4. Initialize the workload backend only after storage and access exist. For this existing lab, do not rebootstrap or migrate state just to publish the repository.
-5. From each Terraform root, run `terraform fmt -check`, `terraform validate`, and review `terraform plan -out=lab.tfplan` before apply. Saved plans stay private. Plan/apply are operational steps, not required to view the portfolio.
-6. Run Ansible using a private inventory and local SSH alias as documented in [Ansible setup](05-ansible-web-configuration.md). Do not commit connection settings or private keys.
+Added the missing DNS playbook/role, safe inventory and SSH examples, and control-node instructions. Completed required example inputs, corrected the variables filenames, removed empty Terraform placeholders, and updated stale documentation. Both roots now declare Terraform 1.16.4; bootstrap uses its declared subscription input. All Azure-connected jobs require private `main` execution.
 
-Some resources and variables are learning-stage placeholders. Empty Terraform files represent planned components, not implemented features. Inputs including state-storage names are retained even where not consumed by workload resources.
+These edits do not rename Terraform resource addresses. No state migration or Azure apply was performed during this review.
 
-## Publication review scope
+## Checks completed
 
-- Reviewed tracked files, publishable untracked files, and the one existing commit's tracked file list. No state, real tfvars, saved plans, private keys or Terraform caches are tracked in that history.
-- Pattern-based text checks found no private-key blocks, Azure account-key connection strings, GitHub token patterns, real GUID identifiers or email addresses in publishable file contents. This is a bounded review, not a guarantee that every possible secret format can be detected. Dedicated secret-scanner/OCR tools were not installed.
-- Reviewed screenshot evidence supplied during the walkthrough. Lab private addresses, lab usernames and Azure resource names are retained as noncredential evidence. Heartbeat screenshots with public addresses/identifiers and the portal image with account details were kept out of the repository; sanitized replacements remain pending.
-- Git commit metadata contains the author's configured email. It is separate from file contents and will be public if the existing history is pushed. Decide whether to retain it or sanitize the unpublished history before a public push. No history rewrite was performed during this review.
-- A remote is already configured. No push, Azure deployment, Terraform state operation or resource change was performed as part of the publication review. Formatting and documentation changes do not change infrastructure behavior.
+| Check | Result |
+| --- | --- |
+| Terraform 1.16.4 / AzureRM 5.0.0 | Formatting and validation pass for both roots |
+| Example inputs | Required inputs present; real values remain private |
+| Ansible Core 2.19.3 | Both playbooks pass syntax checks; inventory parses; YAML lint passes |
+| Unbound 1.19.2 | Rendered configuration passes its native checker with local filesystem/user defaults adjusted for the review host |
+| CI helpers | Seven saved-plan verification tests pass |
+| Workflow review | YAML and shell syntax pass; external actions are commit-pinned; private-main guards verified |
+| Documentation | Local links and screenshot targets resolve |
 
-## Evidence gaps and security limitations
+Local checks do not replace a live deployment test.
 
-Some earlier inventory/bootstrap screenshots are visible only in conversation and unavailable in the repository. They are documented as pending copies rather than embedded with broken links. Author-confirmed checks without screenshots are labeled accordingly.
+## Sensitive-data review
 
-The storage bootstrap code does not explicitly configure all planned recovery/hardening controls; verify anonymous access, HTTPS, versioning, soft delete, exception details and state backup before claiming hardened state storage. General VM outbound filtering remains broad. The 1-GB workspace cap does not provide a spending limit. Syslog marker and AzureActivity ingestion tests remain pending despite general Heartbeat/Syslog ingestion.
+All 37 PNGs were inspected visually and with OCR, including their embedded metadata. No location or private-path metadata was found. No visible API keys, access tokens, passwords, private keys, or personal mailbox addresses were found. Existing redactions remain intact. The public IPs in the DNS lookup images are returned DNS answers. Lab names, private IPs, author display name, and Azure resource identifiers remain visible as evidence; these do not grant access.
 
-These limitations do not prevent presenting the work honestly as an in-progress portfolio project; they prevent presenting it as fully hardened or fully reproducible production infrastructure.
+Gitleaks 8.30.1 scanned the 57 reachable commits and the publishable working tree. The only findings were the literal KQL field name `FailedPasswordCount`, confirmed as false positives. No credential values were detected. An exact comparison also found no copy of the current private VT key in publishable files, screenshot text, or reachable historical blobs. Ignored private tfvars, state, plans, keys, caches, and local connection files are excluded from the push. Git commit metadata retains the configured author identity. These checks reduce exposure risk; they cannot prove that every possible secret format is absent.
+
+Personal email screenshots supplied during validation remain outside the repository.
+
+**Outstanding credential cleanup:** the author confirmed the VirusTotal key has not been rotated. It previously appeared in private plan output before the input was marked sensitive. No copy was found in the reviewed repository files or screenshots. Invalidate it at VirusTotal and handle old private logs/artifacts during cleanup; deleting Azure resources does not deactivate an external API key. This review does not claim that cleanup has occurred.
+
+## Remaining boundaries
+
+The DNS workflow deliberately selects one test domain and one result per run. Broader coverage needs quota handling and recovery. The SSH password-failure branch is untested, web-tier segmentation is the demonstrated network boundary, and database setup, budgets, backups, and recovery testing remain outside the completed scope.
+
+A license has not been selected. Repository visibility remains unchanged. Public copies skip Azure-connected jobs; trusted runner access, repository secrets, and retained Actions artifacts should remain private.
+
+[README](../README.md) · [Ansible guide](../ansible/README.md) · [CI runbook](09-cicd-runner.md) · [Security automation runbook](10-dns-and-security-automation.md)

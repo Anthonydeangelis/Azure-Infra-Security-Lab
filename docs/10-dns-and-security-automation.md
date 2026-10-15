@@ -42,7 +42,7 @@ Configured behavior:
 - Forward queries to Azure DNS `168.63.129.16` and cache answers.
 - Enable `use-syslog: yes` and `log-queries: yes`.
 
-The working role remains on the Mac. **This checkout's `ansible/dns.yml` still contains Nginx tasks; sync the tested DNS playbook and role before presenting this repository as reproducible DNS configuration.**
+The included [DNS playbook and role](../ansible/README.md) recreate the documented configuration. The original Mac-local role was tested live; the included version passes local checks and has not been deployed. The screenshots above show the original run.
 
 ## DNS connectivity verified
 
@@ -134,7 +134,7 @@ The NSG rule was restored after the rename/409 recovery, then a controlled `TEST
 
 ![NSG change alert verified after restoration](../screenshots/sentinel/04-nsg-change-alert.png)
 
-Follow-up work is operational: quota-aware VT processing, recovery/checkpointing, cleanup of validation rules, and synchronization of the actual Unbound Ansible role. The core detection-to-email tests are complete.
+Follow-up work is operational: quota-aware VT processing, recovery/checkpointing, cleanup of validation rules, and live comparison/validation of the reconstructed Unbound role. The core detection-to-email tests are complete.
 
 Rollback: revert the workflow change using a reviewed plan if needed. Removing the custom table deletes its stored evidence; retain the records first and review all planned deletions. Restoring direct incident creation also restores its Defender visibility limitation.
 

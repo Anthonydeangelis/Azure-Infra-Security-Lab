@@ -1,0 +1,7 @@
+---
+# Override for your environment; these are this lab's documented private addresses.
+unbound_listen_address: "10.60.1.4"
+unbound_allowed_clients:
+  - "10.50.1.4/32"
+unbound_forward_address: "168.63.129.16"
+unbound_config_path: /etc/unbound/unbound.conf.d/azure-lab.conf

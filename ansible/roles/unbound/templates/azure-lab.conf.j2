@@ -1,0 +1,21 @@
+# Managed by Ansible. Put lab-specific overrides in private inventory/group variables.
+server:
+    interface: 127.0.0.1
+    interface: {{ unbound_listen_address }}
+    port: 53
+    do-ip4: yes
+    do-ip6: no
+    do-udp: yes
+    do-tcp: yes
+    access-control: 127.0.0.0/8 allow
+{% for client in unbound_allowed_clients %}
+    access-control: {{ client }} allow
+{% endfor %}
+    access-control: 0.0.0.0/0 refuse
+    use-syslog: yes
+    log-queries: yes
+    verbosity: 1
+
+forward-zone:
+    name: "."
+    forward-addr: {{ unbound_forward_address }}

@@ -1,0 +1,30 @@
+---
+- name: Install Unbound
+  ansible.builtin.apt:
+    name: unbound
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure the lab DNS resolver
+  ansible.builtin.template:
+    src: azure-lab.conf.j2
+    dest: "{{ unbound_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    validate: /usr/sbin/unbound-checkconf %s
+  notify: Restart Unbound
+
+- name: Validate the complete Unbound configuration
+  ansible.builtin.command:
+    cmd: /usr/sbin/unbound-checkconf /etc/unbound/unbound.conf
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Start Unbound and enable it at boot
+  ansible.builtin.service:
+    name: unbound
+    state: started
+    enabled: true

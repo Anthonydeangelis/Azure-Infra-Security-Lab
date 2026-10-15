@@ -2,6 +2,8 @@
 
 Evidence supplied October 3, 2026 (America/New_York); rows show October 4 UTC timestamps. Context: Terraform 1.16.4, AzureRM 5.0.0, local Ubuntu execution, Azure Blob workload state. Configuration is in [monitoring.tf](../Terraform/monitoring.tf).
 
+For the October 7 extension to the test VM, DNS collection, and Sentinel progress, see [DNS monitoring and security automation](10-dns-and-security-automation.md). The original deployment evidence below describes the earlier management/web baseline.
+
 ## Configuration and ownership
 
 - Workspace: `law-azure-sec-lab`, PerGB2018, configured retention 30 days and daily quota 1 GB. A daily ingestion cap is not a spending limit and can interrupt collection.
@@ -69,8 +71,27 @@ AzureActivity
 
 - Retain a sanitized Heartbeat screenshot.
 - Investigate and verify the controlled Syslog marker.
-- Verify Administrative Activity Logs arrive in AzureActivity.
+- [x] Verify Administrative Activity Logs arrive in AzureActivity: lab VM deallocation events evidenced October 5.
 - Capture a post-monitoring no-changes plan.
 - Add Nginx file collection, extend VM monitoring, and then proceed to Sentinel/detection.
 
 For infrastructure edits, run `terraform fmt -check`, `terraform validate`, and `terraform plan -out=lab.tfplan` from Terraform/. Review replacements before apply. Risks: collection gaps, ingestion cost, and evidence/identifier exposure. Preserve backend state; reverting code does not recover deleted logs. No infrastructure was changed while documenting the supplied screenshots.
+
+## Activity Log ingestion verified October 5, 2026
+
+The supplied screenshot shows this query returning lab resource-group records:
+
+```kusto
+AzureActivity
+| where TimeGenerated > ago(7d)
+| where ResourceGroup =~ "rg-azure-infra-security-lab"
+| project TimeGenerated, OperationNameValue, ActivityStatusValue, ResourceGroup
+| order by TimeGenerated desc
+| take 20
+```
+
+Rows include `MICROSOFT.COMPUTE/VIRTUALMACHINES/DEALLOCATE/ACTION` with Start, Accept and Success statuses. Visible event timestamps are October 4 UTC; the screenshot was captured October 5 local time. Multiple lifecycle records do not equal distinct VM counts. This verifies subscription Administrative Activity Log delivery and querying of the lab's events. It does not verify an NSG change detection, Sentinel onboarding, or incident generation.
+
+![Lab VM deallocation events ingested into AzureActivity](../screenshots/monitoring/03-azureactivity-lab-events.png)
+
+Sentinel can now be added to the existing workspace after cost review, followed by a controlled change on an unattached test NSG.

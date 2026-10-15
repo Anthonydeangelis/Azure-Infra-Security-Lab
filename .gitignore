@@ -51,3 +51,8 @@ ansible/inventory.local*
 # Python CI helper caches
 __pycache__/
 *.pyc
+
+# Local control-node environments and SSH connection configuration
+.venv/
+venv/
+ansible/ssh_config.local*

@@ -1,4 +1,6 @@
 terraform {
+  required_version = "=1.16.4"
+
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -10,4 +12,5 @@ terraform {
 # Configure the Microsoft Azure Provider
 provider "azurerm" {
   features {}
+  subscription_id = var.subscription_id
 }

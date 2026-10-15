@@ -1,0 +1,2 @@
+# Version used for this reconstructed role's offline syntax and rendering checks.
+ansible-core==2.19.3

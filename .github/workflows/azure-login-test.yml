@@ -7,7 +7,7 @@ permissions: {}
 
 jobs:
   login:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event.repository.private
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     permissions:
