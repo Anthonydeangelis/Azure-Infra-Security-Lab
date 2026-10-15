@@ -75,3 +75,7 @@ variable "VTKey" {
 variable "sfc-ip" {
   type = string
 }
+
+variable "var.incident_email_recipient"{
+  type = string
+}

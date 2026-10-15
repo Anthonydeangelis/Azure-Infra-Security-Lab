@@ -341,3 +341,52 @@ resource "azurerm_api_connection" "VT-API" {
     "api_key" = var.VTKey
   }
 }
+data "azurerm_managed_api" "outlook" {
+  name     = "outlook"
+  location = var.location
+}
+resource "azurerm_api_connection" "outlook" {
+  name                = "incident-email-outlook"
+  resource_group_name = var.rg-lab
+  managed_api_id      = data.azurerm_managed_api.outlook.id
+  display_name        = "Incident email notifications"
+}
+
+resource "azurerm_logic_app_workflow" "incident_email" {
+  name                = "incident-email"
+  resource_group_name = var.rg-lab
+  location            = var.location
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  workflow_parameters = {
+    "$connections" = jsonencode({
+      type         = "Object"
+      defaultValue = {}
+    })
+  }
+
+  parameters = {
+    "$connections" = jsonencode({
+      outlook = {
+        id             = data.azurerm_managed_api.outlook.id
+        connectionId   = azurerm_api_connection.outlook.id
+        connectionName = azurerm_api_connection.outlook.name
+      }
+      azuresentinel = {
+        id = data.azurerm_managed_api.sentinel.id
+        connectionId = jsondecode(
+          azurerm_resource_group_template_deployment.sentinel_email_connection.output_content
+        ).connectionId.value
+        connectionName = "incident-email-sentinel"
+        connectionProperties = {
+          authentication = {
+            type = "ManagedServiceIdentity"
+          }
+        }
+      }
+    })
+  }
+}
