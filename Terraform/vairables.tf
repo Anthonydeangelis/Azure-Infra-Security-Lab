@@ -69,7 +69,8 @@ variable "la-name" {
 }
 
 variable "VTKey" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "sfc-ip" {
