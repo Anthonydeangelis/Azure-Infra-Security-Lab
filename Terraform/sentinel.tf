@@ -28,7 +28,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "nsg-config" {
 
   alert_details_override {
     display_name_format = "NSG configuration changed: {{NSGName}}"
-    description_format  = "Actor {{Caller}} from {{CallerIpAddress}} performed {{OperationNameValue}} on NSG {{NSGName}} ({{RuleName}}) at {{EventTimeUTC}} UTC. Correlation ID: {{CorrelationId}}. Verify the change was authorized; this event does not establish the exact before/after configuration."
+    description_format  = "Actor {{Caller}} performed {{OperationNameValue}} at {{EventTimeUTC}} UTC. Review NSG, caller IP, and correlation ID in custom details."
   }
 
   entity_mapping {
@@ -128,19 +128,19 @@ resource "azurerm_sentinel_alert_rule_scheduled" "ssh_failures" {
   QUERY
 
   custom_details = {
-    Host                  = "Computer"
-    SourceIP              = "RemoteIP"
-    MatchingRecords       = "FailureCount"
-    InvalidUserRecords    = "InvalidUserCount"
-    FailedPasswordRecords = "FailedPasswordCount"
-    AttemptedUsers        = "Usernames"
-    FirstSeenUTC          = "FirstSeenUTC"
-    LastSeenUTC           = "LastSeenUTC"
+    Host                = "Computer"
+    SourceIP            = "RemoteIP"
+    MatchingRecords     = "FailureCount"
+    InvalidUserRecords  = "InvalidUserCount"
+    FailedPasswordCount = "FailedPasswordCount"
+    AttemptedUsers      = "Usernames"
+    FirstSeenUTC        = "FirstSeenUTC"
+    LastSeenUTC         = "LastSeenUTC"
   }
 
   alert_details_override {
     display_name_format = "Repeated failed SSH authentication on {{Computer}}"
-    description_format  = "Source {{RemoteIP}} generated {{FailureCount}} matching SSH records on {{Computer}}: {{InvalidUserCount}} invalid-user and {{FailedPasswordCount}} failed-password records. Attempted users: {{Usernames}}. First seen {{FirstSeenUTC}} UTC; last seen {{LastSeenUTC}} UTC. Review original Syslog records; counts represent log records, not guaranteed unique login attempts."
+    description_format  = "Source {{RemoteIP}} generated {{FailureCount}} matching SSH records on {{Computer}}. Review usernames, record types, and timestamps in custom details; records are not guaranteed unique login attempts."
   }
 
   entity_mapping {
