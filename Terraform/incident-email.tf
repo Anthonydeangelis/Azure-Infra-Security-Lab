@@ -128,7 +128,7 @@ resource "azurerm_logic_app_action_custom" "send_incident_email" {
   depends_on = [azurerm_logic_app_action_custom.incident_email_details]
 }
 
-# Notify only for newly created incidents linked to the DNS reputation rule.
+# Notify for newly created incidents linked to the DNS, SSH, or NSG lab rules.
 # Sentinel's service identity needs Automation Contributor on the playbook RG
 # (managed in portal IAM); the playbook identity separately needs Sentinel Reader.
 resource "azurerm_sentinel_automation_rule" "dns_incident_email" {

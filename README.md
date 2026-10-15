@@ -1,197 +1,205 @@
 # Azure Infrastructure & Security Lab
 
-A hands-on project demonstrating Azure administration, Terraform, and practical cloud security automation.
+I built this lab to connect Azure infrastructure deployment with Linux administration, security monitoring, and incident response. Terraform provisions the environment, Ansible configures workloads, and Microsoft Sentinel turns Azure activity and Linux telemetry into investigations.
 
-**The project story:** deploy a small Azure environment, secure it, collect its logs, detect a security-relevant change, and automate investigation and response.
+The main security workflow follows a DNS lookup from a Linux client through Unbound, Log Analytics, a VirusTotal reputation check, and a Sentinel analytics rule. A controlled test produced an alert and incident in Microsoft Defender with the queried domain and client IP as investigation entities. A separate incident-response playbook successfully delivered an email notification to Gmail through an Outlook.com connection.
 
-## Current status
+## Project at a glance
 
-**Initial compute and networking deployed across two regions.** Screenshots reviewed October 2, 2026 show five VMs, two non-overlapping VNets, connected peering in both directions, and the database data disk attached. The author reports successful SSH to management; the supplied login screenshot shows Ubuntu 24.04.4 LTS. October 3 evidence verifies management-to-app and cross-region management-to-test SSH. All four private VM SSH destinations are now evidenced. Explicit outbound access, broader segmentation, and security automation remain pending. Initial management/web monitoring is now collecting Heartbeat and general Syslog. See [deployment verification and remaining tests](docs/04-workload-deployment.md).
-
-See [Bootstrap deployment and evidence](docs/01-state-storage-bootstrap.md).
-
-**Ansible web configuration verified October 3, 2026:** Nginx installed from the Mac through the management jump host. The repeat run reported **changed=0**, and management received **HTTP 200** from the private web VM. [Commands, results, and screenshots](docs/05-ansible-web-configuration.md). Explicit outbound configuration and the broader security automation remain pending.
-
-The custom lab homepage is also deployed through Ansible: **5 OK, 1 changed** on deployment and **5 OK, 0 changed** on repeat, with no failed or unreachable tasks. Management retrieved the expected HTML over private HTTP. [Custom-page evidence](docs/05-ansible-web-configuration.md#custom-homepage-verified-october-3-2026).
-
-**Post-deployment check, October 3, 2026:** the supplied Terraform plan reports **No changes**. [Screenshot and verification limits](docs/04-workload-deployment.md#follow-up-plan-verified-october-3-2026).
-
-**Web NSG decisions verified:** the reviewed plan proposed three inbound rules (**3 additions, 0 changes, 0 deletions**). Network Watcher now reports management SSH/HTTP allowed by the explicit rules and app SSH/HTTP denied by `Deny_All`. Live HTTP tests also show management retrieving the custom page while app times out. The author also confirmed fresh web SSH still worked and the post-change plan reported no changes; those final checks have no retained screenshots. The apply summary remains uncaptured. [Before/after design, plan, and test checklist](docs/06-web-network-segmentation.md).
-
-[Workload review](docs/02-workload-plan-review.md) records the original pre-deployment plan. The revised saved plan was reviewed with **13 additions, 0 updates, and 4 replacements of test-network resources**; the primary VNet and database disk were preserved in that plan. Actual apply totals have not yet been captured.
-
-[Deployment troubleshooting](docs/03-deployment-blockers.md) records the earlier quota and SKU failures that prompted the redesign. Subsequent inventory screenshots now show all five VMs using Standard_F1as_v7 across East US 2 and East US.
-
-Completed items will be checked off only after testing. Screenshots and short explanations will document the results, including any limitations.
-
-**Design history:** the local Git tag `design-before-region-refactor` preserves the earlier code, including an unfinished second-VNet block. [Original design, reason for the pivot, and checkpoint limitations](docs/03-deployment-blockers.md#design-history-checkpoint) are documented separately. The revised compute/network deployment is now evidenced; functional testing remains in progress.
-
-```text
-East US 2: vnet-lab01 (10.50.0.0/16)
-  Management, web, app, database VMs
-             ↕ Connected VNet peering
-East US:   vnet-lab02 (10.60.0.0/16)
-  Test VM
-```
-
-All five VMs use Standard_F1as_v7. October 3 screenshots verify management-to-app SSH within the primary VNet and management-to-test SSH across peering. See [connection commands and evidence](docs/04-workload-deployment.md#primary-vnet-ssh-verified-october-3-2026). Additional screenshots verify management-to-web and management-to-database SSH; all four private destinations are now tested. Web inbound restrictions are verified separately in the segmentation evidence above.
-
-**Initial monitoring verified October 3, 2026:** `law-azure-sec-lab` contains Heartbeat and general Syslog from management and web. The successful retry apply added four resources. The specific controlled Syslog message and AzureActivity ingestion are not yet verified. [Monitoring setup, evidence, and troubleshooting](docs/07-initial-monitoring.md).
-
-## Planned architecture
-
-```text
-GitHub Actions + OIDC → Terraform → Azure lab resources
-                                    ├── Virtual network, subnets, and NSGs
-                                    ├── VM workload and managed identity
-                                    ├── Storage and Key Vault
-                                    └── Security controls and backup
-
-Activity Log + selected resource/VM logs → Log Analytics
-                                           ├── Azure Monitor alerts
-                                           └── Microsoft Sentinel
-                                                → Incident
-                                                → Playbook enrichment + notification
-```
-
-The current deployed baseline is documented above. OIDC, Key Vault, alerts, backup, Sentinel, and playbook response remain planned; this diagram shows the intended end state. Cost estimates and state recovery tests remain unfinished.
-
-## Project breakdown
-
-### 1. Terraform infrastructure
-
-**Goal:** deploy a small environment that can be reproduced and managed through code.
-
-- [x] Review and adapt the initial architecture to regional quota and SKU constraints.
-- [ ] Define naming, tags, resource ownership, and remote state.
-- [x] Deploy the bootstrap storage account and blob container.
-- [x] Verify selected-network access is configured (exception details still pending).
-- [x] Initialize the workload Azure backend and confirm the remote state blob exists.
-- [x] Deploy networking and five Linux VMs across two regions.
-- [ ] Complete workload storage, Key Vault, and scoped identity/access tests.
-- [ ] Configure GitHub Actions authentication with OIDC.
-- [x] Verify VM inventory, private SSH paths, and a follow-up no-changes plan.
-
-**Evidence:** architecture and deployed-resource notes, sanitized plan summary, private SSH tests. GitHub workflow evidence is planned.
-
-### 2. Secure administration
-
-**Goal:** demonstrate controlled access, network protection, cost awareness, and recovery.
-
-- [ ] Configure and test scoped RBAC assignments.
-- [x] Verify web NSG management allows and app denial; document SSH through management.
-- [ ] Extend segmentation to remaining workload subnets.
-- [ ] Configure appropriate private access for selected services.
-- [ ] Apply Azure Policy and review compliance results.
-- [ ] Configure a budget and alert notifications.
-- [ ] Configure VM backup and complete a tested restore.
-
-**Evidence:** allowed/denied access tests, network rules, policy results, budget configuration, and restore validation.
-
-### 3. Operational monitoring
-
-**Goal:** collect useful logs and demonstrate that monitoring works.
-
-- [x] Deploy Log Analytics and subscription Administrative Activity Log export.
-- [ ] Verify a lab event arrives in AzureActivity.
-- [ ] Enable selected resource diagnostic settings.
-- [x] Collect Heartbeat and general Linux Syslog from management and web using AMA and a DCR.
-- [ ] Verify a uniquely tagged controlled Syslog event.
-- [ ] Extend guest monitoring to the remaining VMs and collect Nginx access/error files.
-- [ ] Save KQL queries for resource changes and workload health.
-- [ ] Trigger and verify an operational alert.
-
-**Evidence:** incoming log records, query results, and a tested alert.
-
-### 4. Security monitoring
-
-**Goal:** investigate an NSG change using Microsoft Sentinel.
-
-- [ ] Enable Sentinel and verify the selected data sources.
-- [ ] Create an isolated test NSG with no subnet or network interface attached.
-- [ ] Generate a controlled rule change without exposing a workload.
-- [ ] Create and test a detection that produces a Sentinel incident.
-- [ ] Investigate the actor, resource, time, operation, and actual rule configuration.
-- [ ] Test an expected change as well as a suspicious configuration.
-- [ ] Remove the test rule and document the outcome.
-
-**Evidence:** controlled event, Activity Log record, detection query, incident, and investigation walkthrough.
-
-An NSG write is a change signal, not proof of dangerous access. The investigation will inspect rule direction, action, priority, source, destination, ports, and NSG associations. Current configuration may differ from the configuration at event time; that limitation will be recorded.
-
-### 5. Investigation automation
-
-**Goal:** enrich an incident and notify me using a Sentinel playbook.
-
-- [ ] Document the playbook identity and minimum required permissions.
-- [ ] Retrieve the affected NSG and its current rules and associations.
-- [ ] Add investigation findings to the incident.
-- [ ] Send and verify a notification.
-- [ ] Test failure handling, including missing resources or denied access.
-
-**Evidence:** playbook run, incident enrichment, notification, and a failure-handling test.
-
-**Later, optional:** approval-required remediation restricted to explicitly tagged lab resources; scheduled shutdown of tagged VMs; or an inventory/compliance report. Automatic remediation is outside the initial scope.
-
-## Reproducing the configuration
-
-See [setup and publication notes](docs/08-repository-readiness.md). Sanitized input examples are provided in both Terraform roots; real inputs, keys, state and plans stay private. This is an in-progress portfolio lab, not a production-ready deployment template.
-
-## Repository layout
-
-`bootstrap/`, `Terraform/`, `ansible/`, `docs/`, and `screenshots/` exist. The monitoring, Sentinel, and automation folders are planned.
-
-```text
-bootstrap/     Separate state-storage creation configuration
-Terraform/     Workload infrastructure and monitoring resources
-ansible/       Linux server configuration playbooks
-monitoring/    KQL queries and operational alert definitions
-sentinel/      Detection rules and investigation examples
-automation/    Playbook definitions and supporting scripts
-docs/          Architecture, decisions, permissions, costs, and troubleshooting
-screenshots/   Sanitized evidence organized by phase
-```
-
-## Verified results
-
-Evidence reviewed September 30–October 3, 2026 from author-supplied screenshots and reported checks. The following table summarizes bootstrap; later milestones are linked above. Screenshot filenames use local time, while some Azure records display UTC.
-
-| Step completed | Observed result | Evidence |
+| Area | Technology / system | Demonstrated result |
 | --- | --- | --- |
-| Bootstrap apply | Storage account and container created; **2 added, 0 changed, 0 destroyed** | [Apply evidence notes](docs/01-state-storage-bootstrap.md#1-terraform-apply) |
-| Resource placement | Storage account visible in the dedicated state resource group, East US 2 | [Resource overview notes](docs/01-state-storage-bootstrap.md#2-resource-group-overview) |
-| Storage network configuration | Selected networks enabled; one IPv4 entry and one exception displayed | [Networking screenshot](screenshots/bootstrap/03-storage-networking.png) |
-| State-access RBAC | Role assignment apply: **1 added, 0 changed, 0 destroyed**; Storage Blob Data Contributor visible in IAM | [RBAC evidence notes](docs/01-state-storage-bootstrap.md#4-state-access-role-assignment) |
-| Workload backend | Azure backend initialized successfully; `azure-lab.tfstate` block blob visible in the portal | [Remote-state evidence notes](docs/01-state-storage-bootstrap.md#5-workload-backend-initialization) |
+| Infrastructure as code | Terraform 1.16.4, AzureRM 5.0.0 | Five Ubuntu VMs, two peered VNets, subnets, NICs, and workload networking |
+| State management | Azure Blob Storage, separate bootstrap resource group | Remote state with locking and restricted network access |
+| Private administration | Management VM / SSH jump host | Private SSH access to workload VMs through management |
+| Configuration management | Ansible, Nginx | Custom web page and a repeat run with zero changes |
+| Network validation | NSGs, Network Watcher, live HTTP requests | Management-to-web access allowed; app-to-web access denied |
+| CI/CD | GitHub Actions, self-hosted Ubuntu runner, Entra OIDC | Automatic plans on main pushes; manually dispatched apply of a reviewed saved plan |
+| Telemetry | Azure Activity Log, AMA, Syslog DCR | Administrative activity and Linux logs collected in Log Analytics |
+| DNS detection | Unbound, VirusTotal, Logic Apps, Logs Ingestion API | Flagged domain verdict stored in `DNSReputation_CL`; Sentinel alert and Defender incident verified |
+| Response automation | Sentinel incident trigger, Logic Apps, Outlook.com | Manual incident playbook run delivered an email to Gmail |
 
-### Remote-state evidence
+**Current verification boundary:** DNS detection and manual email delivery are verified. Automatic email notification is configured in Terraform for DNS, SSH, and NSG incidents, but an automatic end-to-end test remains pending. The SSH rule still needs a verified test incident. The NSG detection previously worked and is currently awaiting restoration after a Terraform resource-label rename caused deletion and a temporary Azure rule-ID reuse conflict.
 
-Azure backend initialization completed successfully, and the state blob is visible in the storage container.
+## Architecture
 
-![Successful Azure backend initialization](screenshots/bootstrap/06-backend-initialization.png)
+```mermaid
+flowchart TD
+    GitHub[Private GitHub repository] --> Runner[Self-hosted Ubuntu runner]
+    Runner -->|GitHub OIDC| Azure[Azure infrastructure via Terraform]
+    Ansible[Mac Ansible controller] --> Management[Management VM / SSH jump host]
+    Management --> Workloads[Private web, app, database, and test VMs]
+    Management -->|DNS| Unbound[Unbound resolver on test VM]
+    Unbound -->|Syslog through AMA| LAW[Log Analytics workspace]
+    Activity[Azure Administrative Activity Log] --> LAW
+    LAW -->|Scheduled DNS query| Reputation[DNS reputation Logic App]
+    Reputation --> VT[VirusTotal domain report]
+    VT -->|Malicious or suspicious verdict| Ingestion[DCE and ingestion DCR]
+    Ingestion --> Verdicts[DNSReputation_CL]
+    Verdicts --> Detection[Sentinel analytics rule]
+    Detection --> Incident[Alert and Defender incident]
+    Incident -. Automatic invocation pending verification .-> Automation[Sentinel automation rule]
+    Automation --> Email[Incident email playbook]
+    Email --> Outlook[Outlook.com to recipient mailbox]
+```
 
-![Remote Terraform state blob in Azure Storage](screenshots/bootstrap/07-remote-state-blob.png)
+| Network | Region | Workloads |
+| --- | --- | --- |
+| `10.50.0.0/16` — primary VNet | East US 2 | Management `10.50.1.4`, web `10.50.2.4`, app `10.50.3.4`, database `10.50.4.4` |
+| `10.60.0.0/16` — secondary VNet | East US | Test VM / Unbound resolver `10.60.1.4` |
 
-For each update, record **what changed, how it was tested, what happened, and a link to the evidence**. Include unsuccessful tests and their fixes when they demonstrate useful troubleshooting.
+The VNets are peered. Management uses Unbound as its upstream DNS server; `resolvectl status` confirmed the active setting. Ubuntu's loopback DNS stub can answer cached requests without generating another Unbound query. The resolver must remain available while management depends on it.
 
-## Evidence and documentation
+## What I built
 
-- Use descriptive screenshot names, such as `01-resource-overview.png` and `04-sentinel-incident.png`.
-- Capture the configuration and its tested result; a setup screenshot alone does not prove success.
-- Redact sensitive identifiers, account details, IP addresses where necessary, and notification recipients before committing evidence.
-- Never commit credentials, private keys, Terraform state, saved plans, or private configuration. Review the repository exclusions before the first push.
-- Keep detailed notes in `docs/` as needed and link to them from the completed phase.
+### 1. Repeatable infrastructure and controlled administration
+
+I separated the Terraform state-storage bootstrap from the workload deployment so state access and workload lifecycle can be managed independently. The workload environment contains five Ubuntu VMs across two VNets, including an attached database data disk. Guest disk initialization remains a follow-up task.
+
+Workload administration uses private SSH paths through the management VM. This tests a jump-host access pattern without requiring public SSH access to every workload. Segmentation is demonstrated most fully on the web tier; broader east-west and outbound restrictions remain future work.
+
+<details>
+<summary>Infrastructure and network-access evidence</summary>
+
+Management can reach the web service through its explicit HTTP allow rule.
+
+![Management HTTP allowed by the web NSG](screenshots/security/02-management-http-allowed.png)
+
+A live HTTP request from management returns the custom page; the corresponding request from the app VM times out under the web NSG policy.
+
+![Management HTTP request succeeds](screenshots/security/05-management-http-success.png)
+
+![App-to-web HTTP request times out](screenshots/security/06-app-http-timeout.png)
+
+</details>
+
+**Related material:** [state bootstrap](docs/01-state-storage-bootstrap.md), [workload deployment](docs/04-workload-deployment.md), [web segmentation](docs/06-web-network-segmentation.md).
+
+### 2. Linux workload configuration with Ansible
+
+I used Ansible to install Nginx, enable the service, deploy a custom homepage, and check the local HTTP response. A repeated execution reported **5 OK, 0 changed, 0 failed**, demonstrating repeatable configuration.
+
+The Unbound installation and resolver configuration were also tested from the Mac controller. That working role has not yet been synchronized into this checkout: `ansible/dns.yml` currently contains Nginx tasks despite its DNS-oriented name and should not be used to reproduce the resolver configuration.
+
+<details>
+<summary>Ansible and DNS resolver evidence</summary>
+
+![Custom web page and repeat Ansible execution](screenshots/ansible/03-custom-page-and-repeat-run.png)
+
+The Unbound configuration was validated before the service restart; the play completed without failed or unreachable hosts.
+
+![Unbound configuration validation](screenshots/dns/02-unbound-config-validation.png)
+
+Management received DNS answers from Unbound over both UDP and TCP.
+
+![Management-to-Unbound TCP lookup](screenshots/dns/04-management-dns-tcp.png)
+
+</details>
+
+**Related material:** [Ansible web configuration](docs/05-ansible-web-configuration.md), [DNS and security automation](docs/10-dns-and-security-automation.md).
+
+### 3. CI/CD with federated Azure authentication
+
+A self-hosted runner on the existing Ubuntu machine executes GitHub Actions under a dedicated runner account. GitHub OIDC authenticates the workflow to Azure without a stored Azure client secret. Network access to the state account uses the runner's public outbound IP; remote access to the runner through Tailscale does not automatically change that outbound route.
+
+Pushes to `main` generate a saved Terraform plan. Apply is a separate manual workflow that verifies the selected plan's source run, attempt, commit, and artifact integrity before applying it. Private variable inputs come from the `TERRAFORM_TFVARS` GitHub secret, not the ignored local tfvars file. The apply process uses manual dispatch; it does not claim an independent environment-reviewer approval gate.
+
+<details>
+<summary>CI authentication evidence</summary>
+
+![Successful GitHub OIDC login](screenshots/cicd/02-oidc-login-success.png)
+
+</details>
+
+**Related material:** [CI/CD runbook](docs/09-cicd-runner.md), [plan workflow](.github/workflows/terraform-plan.yml), [workflow definitions](.github/workflows/).
+
+### 4. Telemetry and Sentinel detections
+
+Administrative Azure Activity Logs and selected Linux Syslog facilities are collected centrally. AMA and its Syslog DCR cover management, web, and the test resolver VM. Heartbeat and Syslog ingestion were verified; this is not a full endpoint detection or process-tree monitoring deployment.
+
+| Detection | Evidence source | Detection behavior | Validation status |
+| --- | --- | --- | --- |
+| NSG configuration change | `AzureActivity` | Successful NSG/rule writes and rule deletion; actor, resource, operation, time, and correlation details | Enriched incident previously verified; rule restoration pending |
+| Repeated failed SSH authentication | `Syslog` | Five matching invalid-user or failed-password records per host/source IP within 30 minutes | Rule configured; end-to-end incident test remains open |
+| DNS domain flagged by VirusTotal | `DNSReputation_CL` | At least one malicious or suspicious engine verdict | Alert and incident verified in Defender |
+
+**Related material:** [initial monitoring](docs/07-initial-monitoring.md), [Sentinel configuration](Terraform/sentinel.tf), [DNS analytics rule and ingestion](Terraform/dns-reputation-alerts.tf).
+
+### 5. DNS reputation enrichment and investigation
+
+Unbound records the client IP and queried domain. The scheduled `dns-rep` Logic App queries recently ingested records, normalizes the domain, excludes specific observed monitoring hostnames, and retrieves an existing VirusTotal domain report. The connector response nests verdict counts under `data.attributes.last_analysis_stats`.
+
+When a malicious or suspicious count exceeds zero, the workflow sends one record per client IP through a Data Collection Endpoint and ingestion DCR into `DNSReputation_CL`. The saved record retains original DNS timestamps, verdict counts, VT analysis time, and workflow run ID. A scheduled Sentinel rule creates an alert with IP/DNS entity mappings and investigation custom details, then an incident visible in Defender.
+
+<details open>
+<summary>Verified DNS ingestion and Defender incident</summary>
+
+The ingestion action returned **HTTP 204** for the controlled test, with **4 malicious** and **5 suspicious** verdicts. Subsequent table results confirmed the record was queryable.
+
+![Flagged DNS verdict accepted by the Logs Ingestion API](screenshots/automation/01-flagged-result-ingestion-204.png)
+
+The Defender incident contains a scheduled Sentinel alert, the domain, client IP `10.50.1.4`, and the original DNS request time in the investigation description.
+
+![DNS reputation incident with domain and client IP entities in Defender](screenshots/sentinel/02-dns-reputation-defender-incident.png)
+
+</details>
+
+The test used DNS resolution; it did not require visiting the flagged website. A DNS lookup and reputation verdict are investigation signals, not proof of a website visit, malware execution, or compromise.
+
+**Related material:** [DNS workflow](Terraform/sentinel.tf), [verdict ingestion and analytics rule](Terraform/dns-reputation-alerts.tf), [implementation notes](docs/10-dns-and-security-automation.md).
+
+### 6. Incident email response playbook
+
+I created a separate `incident-email` Logic App with a Sentinel incident trigger and Outlook.com connection. It formats the incident number, title, severity, status, description, activity timestamps, and investigation link into an HTML email. A manual run from an incident succeeded and delivery to Gmail was confirmed.
+
+The automation rule in Terraform matches the DNS, SSH, and NSG analytics-rule IDs and invokes this playbook when a matching incident is created. Automatic invocation still needs an end-to-end test after the current deployment recovery. Existing incidents are not processed retroactively by the creation trigger.
+
+Permissions have distinct purposes: the playbook identity has Sentinel Reader on the workspace, while Sentinel's service identity needs Automation Contributor on the playbook resource group. Outlook authorization is separate and uses an interactive account sign-in. The lab's email-delivery screenshot is not included because it exposes personal mailbox details.
+
+**Related material:** [email playbook and automation rule](Terraform/incident-email.tf).
+
+## Engineering lessons
+
+- **Match the actual response shape.** Missing the VirusTotal `data` wrapper made property lookups return null; defaulting those values to zero concealed the mismatch until full runtime outputs were inspected.
+- **Choose the detection path for the investigation portal.** Direct API incident creation succeeded but did not synchronize to Defender. Saving verdict evidence and using a Sentinel analytics rule produced the required alert/incident workflow.
+- **Separate authorization from propagation.** The ingestion DCR requires Monitoring Metrics Publisher on the correct scope. A correct new assignment can still return 403 until permissions propagate.
+- **Treat throttling explicitly.** A stalled domain loop was traced to VirusTotal HTTP 429 responses and retries. Quota handling and bounded retries remain to be implemented.
+- **Preserve Terraform resource identity.** Renaming the NSG rule's Terraform label without a `moved` block caused deletion/recreation. Azure then rejected immediate reuse of its rule GUID. Restoration is pending; future address-only refactors need migration blocks and plan review.
+- **Replan after partial applies.** A saved plan is no longer usable after another operation changes state. Generate a fresh plan and inspect all changes before retrying.
+
+## Remaining work
+
+1. Restore the NSG analytics rule and verify its next test incident.
+2. Verify automatic email invocation on a newly created matching incident.
+3. Fix and validate the SSH detection; the failed-password branch remains untested with password authentication disabled.
+4. Add VirusTotal quota handling, bounded retries, caching, and recovery for missed processing windows.
+5. Replace the one-domain-per-run testing limit with controlled coverage. The current limit is not a queue and can skip other query results.
+6. Synchronize the tested Unbound Ansible role into the repository.
+7. Extend workload segmentation and outbound controls; complete guest data-disk setup and evaluate additional telemetry.
+
+## Repository guide
+
+| Path | Purpose |
+| --- | --- |
+| [bootstrap/](bootstrap/) | Separate state-storage infrastructure |
+| [Terraform/](Terraform/) | Compute, networking, monitoring, detections, and Logic Apps |
+| [ansible/](ansible/) | Workload playbooks; tested resolver role awaits synchronization |
+| [.github/workflows/](.github/workflows/) | OIDC test, automatic plan, manually dispatched saved-plan apply |
+| [scripts/ci/](scripts/ci/) | Plan review, provenance checks, and PR comment helpers |
+| [docs/](docs/) | Deployment history, design decisions, troubleshooting, and runbooks |
+| [screenshots/](screenshots/) | Evidence grouped by project stage |
+
+Deployment history: [bootstrap](docs/01-state-storage-bootstrap.md) · [original plan](docs/02-workload-plan-review.md) · [deployment blockers](docs/03-deployment-blockers.md) · [workloads](docs/04-workload-deployment.md) · [repository readiness](docs/08-repository-readiness.md).
+
+## Reproduction and operating boundaries
+
+Use Terraform **1.16.4** and AzureRM **5.0.0**, the committed provider lockfile, and the sanitized variable examples. Create private inputs for your environment, bootstrap the remote backend, then review a workload plan before applying it. The monitoring and automation runbooks record the additional portal-managed IAM assignments and connector authorization steps. Update the CI variable secret whenever private local input values change.
+
+The workflows intentionally run only for the private repository on `main`; copying this project to a public portfolio repository does not enable the Azure-connected runner automatically. Keep state, saved plans, API keys, OAuth tokens, SSH private keys, and real variable files out of Git. Review screenshots and Git history before publishing a public copy.
+
+This remains a lab implementation. Five-minute ingestion filters reduce repeated processing but do not provide durable checkpoints or exactly-once delivery. The VT workflow checks existing reputation reports; it does not continuously rescan domains. Investigation timestamps distinguish the original DNS request from verdict ingestion. Email delivery is verified, but retries and incident correlation can still create notification duplicates under some conditions.
 
 ## Costs and cleanup
 
-Before deploying, document the region, VM size, expected runtime, log ingestion and retention, and estimated service costs. Review backup, Sentinel, private connectivity, and automation costs as each is introduced.
+VMs, disks, Log Analytics/Sentinel ingestion, retention, and Logic App executions can incur charges. Workspace quotas are not hard spending caps. Budget and backup configuration files are currently placeholders.
 
-Budget alerts provide notification; they do not impose a hard spending limit. Record a shutdown and cleanup procedure, including resources that continue to incur charges after a VM is stopped. Protect state and retained evidence during cleanup.
-
-## Project boundaries and related work
-
-This lab builds on my previous Entra ID and Azure Automation work with PowerShell, Microsoft Graph, managed identities, Blob Storage, Key Vault, and GitHub Actions OIDC.
-
-The Entra automation and Proxmox Terraform projects remain separate. Their resources will not be recreated or modified unnecessarily. Each managed resource must have one Terraform state owner; this project will not place an existing resource under a second state.
-
-Links to those projects will be added when ready. Completion claims in this README apply only to evidence verified for this lab.
+Deallocate unused VMs with the resolver dependency in mind; DNS and telemetry coverage change when services are offline. Storage can continue to incur charges after VM deallocation. Keep validation NSGs unattached, preserve state and investigation evidence, and review a destruction plan before removing infrastructure.

@@ -28,7 +28,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "nsg-config" {
 
   alert_details_override {
     display_name_format = "NSG configuration changed: {{NSGName}}"
-    description_format  = "Actor {{Caller}} performed {{OperationNameValue}} at {{EventTimeUTC}} UTC. Review custom details and approved-change evidence."
+    description_format  = "Actor {{Caller}} from {{CallerIpAddress}} performed {{OperationNameValue}} on NSG {{NSGName}} ({{RuleName}}) at {{EventTimeUTC}} UTC. Correlation ID: {{CorrelationId}}. Verify the change was authorized; this event does not establish the exact before/after configuration."
   }
 
   entity_mapping {
@@ -105,16 +105,43 @@ resource "azurerm_sentinel_alert_rule_scheduled" "ssh_failures" {
         )
     | extend RemoteIP = extract(@"from (\S+) port", 1, SyslogMessage)
     | where isnotempty(RemoteIP)
+    | extend AttemptedUser = coalesce(
+        extract(@"^Invalid user (\S+) from ", 1, SyslogMessage),
+        extract(@"^Failed password for (\S+) from ", 1, SyslogMessage)
+      )
     | extend IngestedAt = ingestion_time()
     | summarize
         FailureCount = count(),
+        InvalidUserCount = countif(SyslogMessage startswith "Invalid user "),
+        FailedPasswordCount = countif(SyslogMessage startswith "Failed password for "),
+        AttemptedUsers = make_set(AttemptedUser, 20),
+        FirstSeen = min(TimeGenerated),
         LastSeen = max(TimeGenerated),
         LatestIngestion = max(IngestedAt)
         by Computer, RemoteIP
     | where FailureCount >= 5
     | where LatestIngestion > ago(5m)
-    | extend TimeGenerated = LastSeen
+    | extend TimeGenerated = LastSeen,
+             Usernames = strcat_array(AttemptedUsers, ", "),
+             FirstSeenUTC = format_datetime(FirstSeen, "yyyy-MM-dd HH:mm:ss"),
+             LastSeenUTC = format_datetime(LastSeen, "yyyy-MM-dd HH:mm:ss")
   QUERY
+
+  custom_details = {
+    Host                  = "Computer"
+    SourceIP              = "RemoteIP"
+    MatchingRecords       = "FailureCount"
+    InvalidUserRecords    = "InvalidUserCount"
+    FailedPasswordRecords = "FailedPasswordCount"
+    AttemptedUsers        = "Usernames"
+    FirstSeenUTC          = "FirstSeenUTC"
+    LastSeenUTC           = "LastSeenUTC"
+  }
+
+  alert_details_override {
+    display_name_format = "Repeated failed SSH authentication on {{Computer}}"
+    description_format  = "Source {{RemoteIP}} generated {{FailureCount}} matching SSH records on {{Computer}}: {{InvalidUserCount}} invalid-user and {{FailedPasswordCount}} failed-password records. Attempted users: {{Usernames}}. First seen {{FirstSeenUTC}} UTC; last seen {{LastSeenUTC}} UTC. Review original Syslog records; counts represent log records, not guaranteed unique login attempts."
+  }
 
   entity_mapping {
     entity_type = "Host"
