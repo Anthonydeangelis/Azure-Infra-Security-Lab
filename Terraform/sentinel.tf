@@ -9,7 +9,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "nsg-config" {
   severity                   = "Low"
   enabled                    = true
   query_frequency            = "PT5M"
-  query_period               = "PT30M"
+  query_period               = "PT1H"
   trigger_operator           = "GreaterThan"
   trigger_threshold          = 0
   description                = "Detects successful NSG configuration changes. Investigate authorization and potential network exposure."
@@ -47,6 +47,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "nsg-config" {
   AzureActivity
   | where ResourceGroup =~ "rg-azure-infra-security-lab"
   | where ActivityStatusValue =~ "Success"
+  | where TimeGenerated >= ago(1h)
   | where ingestion_time() > ago(5m)
   | where OperationNameValue in~ (
       "Microsoft.Network/networkSecurityGroups/write",
