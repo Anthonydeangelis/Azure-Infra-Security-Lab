@@ -73,7 +73,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "nsg-config" {
             OperationNameValue, ActivityStatusValue, CorrelationId
 QUERY
   incident {
-    create_incident_enabled = true
+    create_incident_enabled = false
     grouping {
       enabled = false
     }
