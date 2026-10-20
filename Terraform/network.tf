@@ -155,7 +155,7 @@ resource "azurerm_network_security_rule" "test_ssh" {
   priority                    = 200
   direction                   = "Inbound"
   access                      = "Allow"
-  protocol                    = "TCP"
+  protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "22"
   source_address_prefix       = "10.0.0.0/16"
