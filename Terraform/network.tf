@@ -162,3 +162,4 @@ resource "azurerm_network_security_rule" "test_ssh" {
   destination_address_prefix  = "*"
   network_security_group_name = azurerm_network_security_group.Web-Test-NSG.name
   resource_group_name         = var.rg-lab
+}
