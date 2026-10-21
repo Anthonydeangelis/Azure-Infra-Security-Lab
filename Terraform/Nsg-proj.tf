@@ -200,40 +200,43 @@ resource "azurerm_user_assigned_identity" "nsg_functions" {
   location            = var.location
 }
 
-# resource "azurerm_service_plan" "nsg_functions" {
-#   name                = "plan-nsg-functions"
-#   resource_group_name = var.rg-lab
-#   location            = var.location
+resource "azurerm_service_plan" "nsg_functions" {
+  name                = "plan-nsg-functions"
+  resource_group_name = var.rg-lab
+  location            = var.location
 
-#   os_type  = "Linux"
-#   sku_name = "FC1"
-# }
+  os_type  = "Linux"
+  sku_name = "FC1"
+}
 
-# resource "azurerm_function_app_flex_consumption" "nsg_fa" {
-#   name                = "ant-nsg-checker-01"
-#   resource_group_name = var.rg-lab
-#   location            = var.location
-#   service_plan_id     = azurerm_service_plan.nsg_functions.id
+resource "azurerm_function_app_flex_consumption" "nsg_fa" {
+  name                = "ant-nsg-checker-01"
+  resource_group_name = var.rg-lab
+  location            = var.location
+  service_plan_id     = azurerm_service_plan.nsg_functions.id
 
-#   runtime_name    = "python"
-#   runtime_version = "3.14"
+runtime_name    = "python"
+runtime_version = "3.14"
 
-#   storage_container_type = "blobContainer"
+storage_container_type = "blobContainer"
 
-#   storage_container_endpoint = "${azurerm_storage_account.nsg_functions.primary_blob_endpoint}${azurerm_storage_container.nsg_deployment.name}"
+storage_container_endpoint = "${azurerm_storage_account.nsg_functions.primary_blob_endpoint}${azurerm_storage_container.nsg_deployment.name}"
 
-#   storage_authentication_type = "SystemAssignedIdentity"
+storage_authentication_type        = "UserAssignedIdentity"
+storage_user_assigned_identity_id = azurerm_user_assigned_identity.nsg_functions.id
 
-#   https_only = true
+https_only = true
 
-#   identity {
-#     type = "SystemAssigned"
-#   }
+identity {
+  type         = "UserAssigned"
+  identity_ids = [azurerm_user_assigned_identity.nsg_functions.id]
+}
 
-#   app_settings = {
-#     AzureWebJobsStorage__accountName = azurerm_storage_account.nsg_functions.name
-#     AzureWebJobsStorage__credential  = "managedidentity"
-#   }
+app_settings = {
+  AzureWebJobsStorage__accountName = azurerm_storage_account.nsg_functions.name
+  AzureWebJobsStorage__credential  = "managedidentity"
+  AzureWebJobsStorage__clientId    = azurerm_user_assigned_identity.nsg_functions.client_id
+}
 
-#   site_config {}
-# }
+site_config {}
+}
