@@ -194,6 +194,12 @@ resource "azurerm_storage_container" "nsg_deployment" {
   container_access_type = "private"
 }
 
+resource "azurerm_user_assigned_identity" "nsg_functions" {
+  name                = "mi-nsg-functions"
+  resource_group_name = var.rg-lab
+  location            = var.location
+}
+
 # resource "azurerm_service_plan" "nsg_functions" {
 #   name                = "plan-nsg-functions"
 #   resource_group_name = var.rg-lab
