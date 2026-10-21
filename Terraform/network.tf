@@ -151,7 +151,7 @@ resource "azurerm_network_security_group" "Web-Test-NSG" {
 }
 
 resource "azurerm_network_security_rule" "test_ssh" {
-  name                        = "test_ssh"
+  name                        = "test_ssh-01"
   priority                    = 200
   direction                   = "Inbound"
   access                      = "Allow"
