@@ -175,3 +175,59 @@ resource "azurerm_sentinel_automation_rule" "nsg_change_to_playbook" {
     ).workflowId.value
   }
 }
+
+resource "azurerm_storage_account" "nsg_functions" {
+  name                     = "antsansgfunction01"
+  resource_group_name      = var.rg-lab
+  location                 = var.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+
+  min_tls_version                 = "TLS1_2"
+  allow_nested_items_to_be_public = false
+  shared_access_key_enabled = false
+}
+
+resource "azurerm_storage_container" "nsg_deployment" {
+  name                  = "function-deployments"
+  storage_account_id    = azurerm_storage_account.nsg_functions.id
+  container_access_type = "private"
+}
+
+# resource "azurerm_service_plan" "nsg_functions" {
+#   name                = "plan-nsg-functions"
+#   resource_group_name = var.rg-lab
+#   location            = var.location
+
+#   os_type  = "Linux"
+#   sku_name = "FC1"
+# }
+
+# resource "azurerm_function_app_flex_consumption" "nsg_fa" {
+#   name                = "ant-nsg-checker-01"
+#   resource_group_name = var.rg-lab
+#   location            = var.location
+#   service_plan_id     = azurerm_service_plan.nsg_functions.id
+
+#   runtime_name    = "python"
+#   runtime_version = "3.14"
+
+#   storage_container_type = "blobContainer"
+
+#   storage_container_endpoint = "${azurerm_storage_account.nsg_functions.primary_blob_endpoint}${azurerm_storage_container.nsg_deployment.name}"
+
+#   storage_authentication_type = "SystemAssignedIdentity"
+
+#   https_only = true
+
+#   identity {
+#     type = "SystemAssigned"
+#   }
+
+#   app_settings = {
+#     AzureWebJobsStorage__accountName = azurerm_storage_account.nsg_functions.name
+#     AzureWebJobsStorage__credential  = "managedidentity"
+#   }
+
+#   site_config {}
+# }
