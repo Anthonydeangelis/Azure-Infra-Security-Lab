@@ -237,8 +237,7 @@ app_settings = {
   AzureWebJobsStorage__credential  = "managedidentity"
   AzureWebJobsStorage__clientId    = azurerm_user_assigned_identity.nsg_functions.client_id
   AZURE_CLIENT_ID       = azurerm_user_assigned_identity.nsg_functions.client_id
-  AZURE_SUBSCRIPTION_ID = data.azurerm_client_config.current.subscription_id
+  AZURE_SUBSCRIPTION_ID = var.subscription_id
 }
-
 site_config {}
 }
