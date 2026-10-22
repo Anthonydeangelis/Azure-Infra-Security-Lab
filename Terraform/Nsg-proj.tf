@@ -233,6 +233,8 @@ identity {
 }
 
 app_settings = {
+    AzureWebJobsStorage = ""
+
   AzureWebJobsStorage__accountName = azurerm_storage_account.nsg_functions.name
   AzureWebJobsStorage__credential  = "managedidentity"
   AzureWebJobsStorage__clientId    = azurerm_user_assigned_identity.nsg_functions.client_id
