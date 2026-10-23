@@ -315,7 +315,10 @@ resource "azurerm_function_app_flex_consumption" "nsg_fa" {
   site_config {}
 }
 
-resource "azurerm_storage_table" "nsg_finding" {
-  name = "NsgFindings"
-  storage_account_id = azurerm_storage_account.nsg_functions.id
+removed {
+  from = azurerm_storage_table.nsg_finding
+
+  lifecycle {
+    destroy = false
+  }
 }
