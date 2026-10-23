@@ -11,6 +11,8 @@ terraform {
 
 # Configure the Microsoft Azure Provider
 provider "azurerm" {
-  features {}
+  features {
+    storage_use_azuread = true
+  }
   subscription_id = var.subscription_id
 }
