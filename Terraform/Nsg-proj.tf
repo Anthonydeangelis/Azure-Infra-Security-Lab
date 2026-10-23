@@ -108,11 +108,27 @@ resource "azurerm_resource_group_template_deployment" "nsg_change_workflow" {
 
                 runAfter = {}
               }
+
+            Call_NSG_Checker = {
+                type = "Http"
+
+                inputs = {
+                  method = "POST"
+                  uri    = "https://ant-nsg-checker-01.azurewebsites.net/api/nsg_checker"
+
+                  authentication = {
+                    type     = "ManagedServiceIdentity"
+                    audience = "api://e121f511-e1c7-4c22-891b-457e6a6a91ed"
+                  }
+                }
+
+                runAfter = {
+                  Delay = ["Succeeded"]
+                }
+              }
             }
 
-            outputs = {} 
-              
-           
+            outputs = {}
           }
 
           parameters = {
@@ -225,37 +241,76 @@ resource "azurerm_service_plan" "nsg_functions" {
   sku_name = "FC1"
 }
 
+data "azurerm_client_config" "nsg_auth" {}
+
 resource "azurerm_function_app_flex_consumption" "nsg_fa" {
   name                = "ant-nsg-checker-01"
   resource_group_name = var.rg-lab
   location            = var.location
   service_plan_id     = azurerm_service_plan.nsg_functions.id
 
-runtime_name    = "python"
-runtime_version = "3.14"
+  runtime_name    = "python"
+  runtime_version = "3.14"
 
-storage_container_type = "blobContainer"
+  storage_container_type = "blobContainer"
 
-storage_container_endpoint = "${azurerm_storage_account.nsg_functions.primary_blob_endpoint}${azurerm_storage_container.nsg_deployment.name}"
+  storage_container_endpoint = "${azurerm_storage_account.nsg_functions.primary_blob_endpoint}${azurerm_storage_container.nsg_deployment.name}"
 
-storage_authentication_type        = "UserAssignedIdentity"
-storage_user_assigned_identity_id = azurerm_user_assigned_identity.nsg_functions.id
+  storage_authentication_type        = "UserAssignedIdentity"
+  storage_user_assigned_identity_id = azurerm_user_assigned_identity.nsg_functions.id
 
-https_only = true
+  https_only = true
 
-identity {
-  type         = "UserAssigned"
-  identity_ids = [azurerm_user_assigned_identity.nsg_functions.id]
-}
+  identity {
+    type = "UserAssigned"
 
-app_settings = {
+    identity_ids = [
+      azurerm_user_assigned_identity.nsg_functions.id
+    ]
+  }
+
+  app_settings = {
+    # Prevent the provider from injecting a broken key-based connection.
     AzureWebJobsStorage = ""
 
-  AzureWebJobsStorage__accountName = azurerm_storage_account.nsg_functions.name
-  AzureWebJobsStorage__credential  = "managedidentity"
-  AzureWebJobsStorage__clientId    = azurerm_user_assigned_identity.nsg_functions.client_id
-  AZURE_CLIENT_ID       = azurerm_user_assigned_identity.nsg_functions.client_id
-  AZURE_SUBSCRIPTION_ID = var.subscription_id
-}
-site_config {}
+    AzureWebJobsStorage__accountName = azurerm_storage_account.nsg_functions.name
+    AzureWebJobsStorage__credential  = "managedidentity"
+    AzureWebJobsStorage__clientId    = azurerm_user_assigned_identity.nsg_functions.client_id
+
+    # Used by your Python networking client.
+    AZURE_CLIENT_ID       = azurerm_user_assigned_identity.nsg_functions.client_id
+    AZURE_SUBSCRIPTION_ID = var.subscription_id
+  }
+
+  auth_settings_v2 {
+    auth_enabled           = true
+    require_authentication = true
+    require_https          = true
+    unauthenticated_action = "Return401"
+    default_provider       = "azureactivedirectory"
+
+    active_directory_v2 {
+      # Existing Function API app registration.
+      client_id = "e121f511-e1c7-4c22-891b-457e6a6a91ed"
+
+      tenant_auth_endpoint = "https://login.microsoftonline.com/${data.azurerm_client_config.nsg_auth.tenant_id}/v2.0/"
+
+      allowed_audiences = [
+        "api://e121f511-e1c7-4c22-891b-457e6a6a91ed"
+      ]
+
+      # Only the NSG-change Logic App's system-assigned identity.
+      allowed_identities = [
+        jsondecode(
+          azurerm_resource_group_template_deployment.nsg_change_workflow.output_content
+        ).principalId.value
+      ]
+    }
+
+    login {
+      token_store_enabled = false
+    }
+  }
+
+  site_config {}
 }
