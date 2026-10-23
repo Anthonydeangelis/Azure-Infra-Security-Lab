@@ -95,7 +95,21 @@ resource "azurerm_resource_group_template_deployment" "nsg_change_workflow" {
               }
             }
 
-            actions = {}
+            actions = {
+                Delay = {
+    type = "Wait"
+
+    inputs = {
+      interval = {
+        count = 30
+        unit  = "Minute"
+      }
+    }
+
+    runAfter = {}
+  }
+}
+            }
             outputs = {}
           }
 
