@@ -481,3 +481,72 @@ resource "azurerm_resource_group_template_deployment" "nsg_findings_dcr" {
     }
   })
 }
+
+resource "azurerm_sentinel_alert_rule_scheduled" "nsg_ssh_finding" {
+  name                       = "d41b3127-066c-4e46-9676-b315badc7474"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.lab-law.id
+  display_name               = "Unrestricted inbound SSH detected"
+  description                = "The NSG checker detected an inbound SSH allow rule with an unrestricted source."
+  severity                   = "Medium"
+  enabled                    = true
+
+  query_frequency   = "PT5M"
+  query_period      = "PT1H"
+  trigger_operator  = "GreaterThan"
+  trigger_threshold = 0
+
+  query = <<-KQL
+    NsgFindings_CL
+    | where TimeGenerated >= ago(1h)
+    | where ingestion_time() > ago(5m)
+    | where CheckType == "InternetSSH"
+    | where Status == "Risky"
+    | extend FindingKey = strcat(
+        tolower(NsgId), "|", tolower(RuleName), "|", CheckType
+      )
+    | summarize arg_max(TimeGenerated, *) by FindingKey
+    | project TimeGenerated, NsgId, NsgName, RuleName,
+              CheckType, Status, Reason, FindingKey
+  KQL
+
+  custom_details = {
+    FindingKey = "FindingKey"
+    NsgName    = "NsgName"
+    RuleName   = "RuleName"
+    CheckType  = "CheckType"
+  }
+
+  alert_details_override {
+    display_name_format = "Unrestricted SSH: {{NsgName}} / {{RuleName}}"
+    description_format  = "{{Reason}}. Observed at {{TimeGenerated}} UTC. Review current configuration before remediation."
+  }
+
+  entity_mapping {
+    entity_type = "AzureResource"
+
+    field_mapping {
+      identifier  = "ResourceId"
+      column_name = "NsgId"
+    }
+  }
+
+  event_grouping {
+    aggregation_method = "AlertPerResult"
+  }
+
+  incident_configuration {
+    create_incident_enabled = true
+
+    grouping {
+      enabled                 = true
+      lookback_duration       = "PT3H"
+      reopen_closed_incidents = false
+      entity_matching_method  = "Selected"
+      by_custom_details       = ["FindingKey"]
+    }
+  }
+
+  depends_on = [
+    azurerm_resource_group_template_deployment.nsg_findings_log_table
+  ]
+}
