@@ -280,6 +280,14 @@ resource "azurerm_function_app_flex_consumption" "nsg_fa" {
     # Used by your Python networking client.
     AZURE_CLIENT_ID       = azurerm_user_assigned_identity.nsg_functions.client_id
     AZURE_SUBSCRIPTION_ID = var.subscription_id
+
+    LOGS_INGESTION_ENDPOINT = jsondecode(
+    azurerm_resource_group_template_deployment.nsg_findings_dcr.output_content
+  ).ingestionEndpoint.value
+
+  LOGS_DCR_IMMUTABLE_ID = jsondecode(
+    azurerm_resource_group_template_deployment.nsg_findings_dcr.output_content
+  ).immutableId.value
   }
 
   auth_settings_v2 {
