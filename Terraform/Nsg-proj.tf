@@ -381,3 +381,95 @@ resource "azurerm_resource_group_template_deployment" "nsg_findings_log_table" {
     ]
   })
 }
+
+resource "azurerm_resource_group_template_deployment" "nsg_findings_dcr" {
+  name                = "nsg-findings-dcr"
+  resource_group_name = var.rg-lab
+  deployment_mode     = "Incremental"
+
+  depends_on = [
+    azurerm_resource_group_template_deployment.nsg_findings_log_table
+  ]
+
+  template_content = jsonencode({
+    "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+    contentVersion = "1.0.0.0"
+
+    resources = [
+      {
+        type       = "Microsoft.Insights/dataCollectionRules"
+        apiVersion = "2023-03-11"
+        name       = "dcr-nsg-findings"
+        location   = azurerm_log_analytics_workspace.lab-law.location
+        kind       = "Direct"
+
+        properties = {
+          streamDeclarations = {
+            "Custom-NsgFindings" = {
+              columns = [
+                {
+                  name = "TimeGenerated"
+                  type = "datetime"
+                },
+                {
+                  name = "NsgId"
+                  type = "string"
+                },
+                {
+                  name = "NsgName"
+                  type = "string"
+                },
+                {
+                  name = "RuleName"
+                  type = "string"
+                },
+                {
+                  name = "CheckType"
+                  type = "string"
+                },
+                {
+                  name = "Status"
+                  type = "string"
+                },
+                {
+                  name = "Reason"
+                  type = "string"
+                }
+              ]
+            }
+          }
+
+          destinations = {
+            logAnalytics = [
+              {
+                name                = "nsg-workspace"
+                workspaceResourceId = azurerm_log_analytics_workspace.lab-law.id
+              }
+            ]
+          }
+
+          dataFlows = [
+            {
+              streams      = ["Custom-NsgFindings"]
+              destinations = ["nsg-workspace"]
+              transformKql = "source"
+              outputStream = "Custom-NsgFindings_CL"
+            }
+          ]
+        }
+      }
+    ]
+
+    outputs = {
+      immutableId = {
+        type  = "string"
+        value = "[reference(resourceId('Microsoft.Insights/dataCollectionRules', 'dcr-nsg-findings'), '2023-03-11').immutableId]"
+      }
+
+      ingestionEndpoint = {
+        type  = "string"
+        value = "[reference(resourceId('Microsoft.Insights/dataCollectionRules', 'dcr-nsg-findings'), '2023-03-11').endpoints.logsIngestion]"
+      }
+    }
+  })
+}
