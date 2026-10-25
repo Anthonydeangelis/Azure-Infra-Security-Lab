@@ -95,7 +95,7 @@ resource "azurerm_resource_group_template_deployment" "nsg_change_workflow" {
               }
             }
 
-                       actions = {
+            actions = {
               Delay = {
                 type = "Wait"
 
@@ -109,7 +109,7 @@ resource "azurerm_resource_group_template_deployment" "nsg_change_workflow" {
                 runAfter = {}
               }
 
-            Call_NSG_Checker = {
+              Call_NSG_Checker = {
                 type = "Http"
 
                 inputs = {
@@ -217,7 +217,7 @@ resource "azurerm_storage_account" "nsg_functions" {
 
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
-  shared_access_key_enabled = false
+  shared_access_key_enabled       = false
 }
 
 resource "azurerm_storage_container" "nsg_deployment" {
@@ -256,7 +256,7 @@ resource "azurerm_function_app_flex_consumption" "nsg_fa" {
 
   storage_container_endpoint = "${azurerm_storage_account.nsg_functions.primary_blob_endpoint}${azurerm_storage_container.nsg_deployment.name}"
 
-  storage_authentication_type        = "UserAssignedIdentity"
+  storage_authentication_type       = "UserAssignedIdentity"
   storage_user_assigned_identity_id = azurerm_user_assigned_identity.nsg_functions.id
 
   https_only = true
@@ -282,12 +282,12 @@ resource "azurerm_function_app_flex_consumption" "nsg_fa" {
     AZURE_SUBSCRIPTION_ID = var.subscription_id
 
     LOGS_INGESTION_ENDPOINT = jsondecode(
-    azurerm_resource_group_template_deployment.nsg_findings_dcr.output_content
-  ).ingestionEndpoint.value
+      azurerm_resource_group_template_deployment.nsg_findings_dcr.output_content
+    ).ingestionEndpoint.value
 
-  LOGS_DCR_IMMUTABLE_ID = jsondecode(
-    azurerm_resource_group_template_deployment.nsg_findings_dcr.output_content
-  ).immutableId.value
+    LOGS_DCR_IMMUTABLE_ID = jsondecode(
+      azurerm_resource_group_template_deployment.nsg_findings_dcr.output_content
+    ).immutableId.value
   }
 
   auth_settings_v2 {
