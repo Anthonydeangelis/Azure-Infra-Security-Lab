@@ -158,7 +158,7 @@ resource "azurerm_network_security_rule" "test_ssh" {
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "22"
-  source_address_prefix       = "10.0.0.0/16"
+  source_address_prefix       = "*"
   destination_address_prefix  = "*"
   network_security_group_name = azurerm_network_security_group.Web-Test-NSG.name
   resource_group_name         = var.rg-lab

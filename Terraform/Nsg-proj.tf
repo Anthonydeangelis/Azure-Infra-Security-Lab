@@ -322,3 +322,62 @@ removed {
     destroy = false
   }
 }
+
+
+resource "azurerm_resource_group_template_deployment" "nsg_findings_log_table" {
+  name                = "nsg-findings-log-table"
+  resource_group_name = var.rg-lab
+  deployment_mode     = "Incremental"
+
+  template_content = jsonencode({
+    "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+    contentVersion = "1.0.0.0"
+
+    resources = [
+      {
+        type       = "Microsoft.OperationalInsights/workspaces/tables"
+        apiVersion = "2022-10-01"
+        name       = "${azurerm_log_analytics_workspace.lab-law.name}/NsgFindings_CL"
+
+        properties = {
+          plan = "Analytics"
+
+          schema = {
+            name = "NsgFindings_CL"
+
+            columns = [
+              {
+                name = "TimeGenerated"
+                type = "datetime"
+              },
+              {
+                name = "NsgId"
+                type = "string"
+              },
+              {
+                name = "NsgName"
+                type = "string"
+              },
+              {
+                name = "RuleName"
+                type = "string"
+              },
+              {
+                name = "CheckType"
+                type = "string"
+              },
+              {
+                name = "Status"
+                type = "string"
+              },
+              {
+                name = "Reason"
+                type = "string"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  })
+}
