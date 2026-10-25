@@ -534,7 +534,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "nsg_ssh_finding" {
     aggregation_method = "AlertPerResult"
   }
 
-  incident_configuration {
+  incident {
     create_incident_enabled = true
 
     grouping {
