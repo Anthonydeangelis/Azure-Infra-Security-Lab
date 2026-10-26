@@ -307,11 +307,17 @@ resource "azurerm_function_app_flex_consumption" "nsg_fa" {
         "api://e121f511-e1c7-4c22-891b-457e6a6a91ed"
       ]
 
-      # Only the NSG-change Logic App's system-assigned identity.
+      allowed_applications = [
+        "8850c011-9afa-468d-8fd2-00d53ac5b1d1",
+        "c6276876-bed3-44cc-a324-30a496523dde",
+      ]
+
       allowed_identities = [
         jsondecode(
           azurerm_resource_group_template_deployment.nsg_change_workflow.output_content
-        ).principalId.value
+        ).principalId.value,
+
+        azurerm_linux_virtual_machine.linux_vms["web"].identity[0].principal_id,
       ]
     }
 
